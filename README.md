@@ -1,6 +1,8 @@
-# 748-Poster
+# 748-Poster / 703-Presentation
 
 # Metagenomic Analysis Pipeline
+
+ZOE Predict 2 & 3 datasets: PRJEB75460, PRJEB75462 & PRJEB75463
 
 All analysis ran on Linux (PuTTY, CGR server) and R
 
