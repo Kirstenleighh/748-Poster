@@ -1,6 +1,9 @@
 # QUALITY CONTROL
 FASTQC performed on raw reads (paired) 
 
+FastQC v0.12.1, MultiQC v1.15
+
+
 ```
 nano Run_fastqc_200.sh
 ```
