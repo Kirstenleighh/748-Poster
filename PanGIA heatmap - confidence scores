@@ -1,0 +1,118 @@
+# Pangia pathogen heatmap - SCORE
+
+# Install packages
+packages <- c("data.table", "pheatmap", "dplyr", "tidyr", "readr", "tibble", "stringr")
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new_packages)) install.packages(new_packages, repos = "https://cloud.r-project.org")
+
+library(data.table)
+library(pheatmap)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(tibble)
+library(stringr)
+
+# User defined parameters
+args <- list(
+  input_dir = '~/Projects/PRJEB75460/FIRST_200/Trimmed_reads/',
+  suffix = '.report.tsv',
+  output_pdf = 'pangia_pathogen_score_heatmap.pdf',
+  output_png = 'pangia_pathogen_score_heatmap.png',
+  output_csv = 'pangia_pathogen_score_matrix.csv',
+  column = 'SCORE',
+  log_transform = FALSE,  # SCORE is already a bounded metric, log transform not recommended
+  top_n = 50
+)
+
+# Find report files
+input_dir <- path.expand(args$input_dir)
+files <- list.files(input_dir, full.names = TRUE)
+files <- files[endsWith(files, args$suffix)]
+
+if (length(files) == 0) stop("No files matching suffix '", args$suffix, "' found in: ", input_dir)
+cat("Found", length(files), "report files.\n")
+
+# Load and filter data from all samples
+tables <- list()
+for (file in files) {
+  sample_name <- basename(file)
+  sample_name <- sub(args$suffix, "", sample_name, fixed = TRUE)
+
+  df <- read_tsv(
+    file,
+    col_select = all_of(c('LEVEL', 'NAME', 'PATHOGEN', args$column)),
+    col_types = cols(.default = col_character()),
+    progress = FALSE,
+    show_col_types = FALSE
+  ) |>
+    filter(PATHOGEN == "Pathogen" & LEVEL == "species") |>
+    transmute(
+      sample = sample_name,
+      NAME = NAME,
+      value = as.numeric(.data[[args$column]])
+    )
+
+  tables[[sample_name]] <- df
+}
+
+# Merge into long table
+long_df <- bind_rows(tables)
+
+if (nrow(long_df) == 0) stop("No pathogen species found across any file. Check PATHOGEN and LEVEL columns.")
+cat("Total pathogen-species rows across all samples:", nrow(long_df), "\n")
+
+# Summarise in case of duplicates per sample
+long_df <- long_df |>
+  group_by(NAME, sample) |>
+  summarise(value = sum(value, na.rm = TRUE), .groups = "drop")
+
+# Pivot to wide matrix (species x samples)
+mat <- long_df |>
+  pivot_wider(names_from = sample, values_from = value, values_fill = 0) |>
+  column_to_rownames("NAME") |>
+  as.matrix()
+
+cat("Matrix dimensions (species x samples):", nrow(mat), "x", ncol(mat), "\n")
+
+# Save full matrix
+write.csv(mat, args$output_csv)
+cat("Full matrix written to:", args$output_csv, "\n")
+
+# Select top N species by mean score
+mean_vals <- rowMeans(mat, na.rm = TRUE)
+top_species <- names(sort(mean_vals, decreasing = TRUE))[1:min(args$top_n, length(mean_vals))]
+mat_top <- mat[top_species, , drop = FALSE]
+cat("Selected top", nrow(mat_top), "species by mean", args$column, "\n")
+
+# Log transform (off by default for SCORE)
+if (args$log_transform) {
+  mat_top <- log1p(mat_top)
+}
+
+# Plot heatmap
+plot_heatmap <- function(out_file, width = 20, height = 0.3 * nrow(mat_top) + 4) {
+  pheatmap(
+    mat_top,
+    color = colorRampPalette(c("mistyrose", "palevioletred", "darkred"))(100),
+    cluster_rows = TRUE,
+    cluster_cols = TRUE,
+    clustering_distance_rows = "euclidean",
+    clustering_distance_cols = "euclidean",
+    clustering_method = "ward.D2",
+    show_colnames = ncol(mat_top) <= 60,
+    show_rownames = TRUE,
+    fontsize_row = 8,
+    fontsize_col = 6,
+    main = paste0("panGIA Top ", nrow(mat_top), " Pathogen Species\n(", args$column, ")"),
+    filename = out_file,
+    width = width,
+    height = height
+  )
+}
+
+plot_heatmap(args$output_pdf)
+plot_heatmap(args$output_png)
+
+cat("Heatmaps written to:\n ", args$output_pdf, "\n ", args$output_png, "\n")
+cat("Done.\n")
