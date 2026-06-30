@@ -1,0 +1,103 @@
+# DOWNLOADING ZOE DATA – fastq files
+   
+Bash script for downloading Zoe data using PREDICT accession numbers from https://www.nature.com/articles/s41586-025-09854-7#Sec10  
+
+```
+nano Download_ena_fastq.sh
+```
+
+```
+#!/bin/bash
+
+set -euo pipefail
+#Run this directly on the login node on the CBF server
+
+#Project name
+PROJECTS=("PRJEB75464") # enter all accession numbers that you want to download
+
+BASE_OUTDIR="$HOME/Projects"
+
+for PROJECT in "${PROJECTS[@]}"; do
+
+  echo "=================================="
+  echo "Processing project: $PROJECT"
+  echo "=================================="
+
+
+  OUTDIR="${BASE_OUTDIR}/${PROJECT}"
+  mkdir -p "$OUTDIR"
+
+
+  TSV="${OUTDIR}/${PROJECT}_runs.tsv"
+
+  ENA_URL="https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${PROJECT}&result=read_run&fields=run_accession,fastq_ftp,sample_accession,scientific_name&format=tsv&download=true&limit=0"
+
+
+  echo "Downloading the TSV for ${PROJECT}..."
+  wget -qO "${TSV}" "${ENA_URL}"
+
+  if ! head -n 1 "${TSV}" | grep -q "run_accession"; then
+    echo "ERROR: Something up with the TSV"
+    echo "First few lines:"
+    head -n 5 "${TSV}"
+    echo
+    echo "URL used:"
+    echo "${ENA_URL}"
+    exit 1
+  fi
+
+  echo "TSV saved to: ${TSV}"
+  echo "Rows of data: $(wc -l < "${TSV}")"
+
+  echo "Downloading FASTQs listed in fastq_ftp..."
+
+awk -F '\t' -v OUTDIR="${OUTDIR}" '
+NR==1 { next }  #skip header
+{
+    #Columns (per fields order):
+    #$1 run_accession
+    #$2 fastq_ftp (semicolon-separated), important one 
+    #$3 sample_accession
+    #$4 scientific_name
+
+    sp = $4
+    gsub(/ /, "_", sp)
+
+    sample = $3
+
+    n = split($2, urls, ";")
+    for (i = 1; i <= n; i++) {
+        url = urls[i]
+        if (url == "" || url ~ /^[[:space:]]*$/) continue
+
+        #ENA gives ftp:// 
+        #Change it to https://
+        gsub(/^ftp:\/\//, "", url)
+        gsub(/^https:\/\//, "", url)
+        url = "https://" url
+
+        dir = OUTDIR "/" sp "/" sample
+        system("mkdir -p \"" dir "\"")
+
+        #-c continue; -nv makes it less verbose which is nicer; -P output dir
+        cmd = "wget -c -nv -nc -P \"" dir "\" \"" url "\""
+        system(cmd)
+    }
+}
+' "${TSV}"
+
+echo "Done. Output in: ${OUTDIR}"
+done
+```
+Control O, 
+enter, and  
+control X to exit
+
+Make sure script is executable after editing:
+```
+chmod +x download.script.file.sh
+```
+Then use screen session so it will still run even if logged out:
+```
+screen -S ./downloading file name here 
+```
