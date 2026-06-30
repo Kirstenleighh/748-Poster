@@ -1,0 +1,33 @@
+# PanGIA 
+
+To run samples sequentially in a screen:
+
+conda activate /pub54/edwardco/miniconda3/envs/pangia
+
+cd into my trimmed reads directory 
+
+nano run_pangia.sh
+
+
+#!/bin/bash
+ 
+for r1 in Trimmed_reads/*_1_val_1.fq.gz
+do
+  r2=${r1/_1_val_1.fq.gz/_2_val_2.fq.gz}
+  name=$(basename "${r1%_1_val_1.fq.gz}")
+  python3 /pub54/edwardco/pangia/pangia/pangia.py -i "${r1}" "${r2}" -db /pub7/panGIA_db/*fa -p "${name}" -st illumina -t 96
+done
+
+
+Ctrl O
+Enter 
+Ctrl X
+
+
+Chmod +x run_pangia.sh 
+
+
+screen -S pangia
+
+
+./run_pangia.sh > pangia.log 2>&1
