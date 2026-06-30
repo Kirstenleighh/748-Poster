@@ -1,0 +1,29 @@
+Cd into where raw reads are (human_gut_metagenome)
+
+Run:
+-------------------------------------------------------
+
+md5sum SAMEA*/* > checksums.md5
+
+----------------------------------------------------
+
+To get the md5s for the downloads on the server
+
+Then download the .tsv file from ENA as the expected downloads for comparison
+
+
+Run:
+----------------------------------------------
+
+awk '{print $1}' ~/Projects/PRJEB75460/human_gut_metagenome/checksums.md5 | sort > /tmp/computed.txt
+
+tail -n +2 ~/Projects/PRJEB75460/filereport_read_run_PRJEB75460.tsv | \
+    awk -F'\t' '{split($4, a, ";"); print a[1]; print a[2]}' | sort > /tmp/expected.txt
+
+diff /tmp/computed.txt /tmp/expected.txt
+
+--------------------------------------------------
+
+Any that are different, remove and redownload 
+
+Run the previous code again and see if the outcome is still the same, if so – issue with Zoe upload and shouldn’t be included in analysis 
