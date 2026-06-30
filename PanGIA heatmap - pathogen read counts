@@ -1,0 +1,149 @@
+Pangia heatmap using average read count - R 
+ 
+ 
+packages <- c("data.table", "pheatmap", "dplyr", "tidyr")
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new_packages)) install.packages(new_packages, repos = "https://cloud.r-project.org")
+ 
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(pheatmap)
+ 
+report_directory <- "~/Projects/PRJEB75460/FIRST_200/Trimmed_reads"
+ file_pattern <- "\\.report\\.tsv$"
+ 
+# Taxonomic level to extract
+tax_level <- "species"
+ 
+# Abundance column to use
+abundance_col <- "READ_COUNT"
+ 
+# How many top taxa to show (ranked by mean relative abundance across samples)
+top_n <- 50
+ 
+# Output files
+output_matrix_csv <- "pangia_pathogen_readcount_matrix.csv"
+output_heatmap_pdf <- "pangia_pathogen_heatmap.pdf"
+output_heatmap_png <- "pangia_pathogen_heatmap.png"
+ 
+ 
+# Find report files 
+report_directory <- path.expand(report_directory)
+files <- list.files(report_directory, pattern = file_pattern, full.names = TRUE)
+ 
+if (length(files) == 0) {
+stop("No files matching '", file_pattern, "' found in: ", report_directory)
+}
+ 
+cat("Found", length(files), "report files.\n")
+ 
+sample_ids <- sub(file_pattern, "", basename(files))
+ 
+ 
+# Read in and combine all reports 
+ 
+read_one_report <- function(filepath, sample_id) {
+dt <- fread(filepath, sep = "\t", header = TRUE, fill = TRUE,
+showProgress = FALSE)
+ 
+# Taxonomic level
+dt <- dt[LEVEL == tax_level]
+ 
+if (nrow(dt) == 0) return(NULL)
+ 
+dt <- dt[PATHOGEN == "Pathogen"]
+ 
+if (nrow(dt) == 0) return(NULL)
+ 
+out <- dt[, .(NAME, value = as.numeric(get(abundance_col)))]
+out[, sample := sample_id]
+out
+}
+ 
+cat("Reading and parsing", length(files), "files (level =", tax_level, ")...\n")
+ 
+all_list <- vector("list", length(files))
+for (i in seq_along(files)) {
+res <- tryCatch(
+read_one_report(files[i], sample_ids[i]),
+error = function(e) {
+warning("Failed to read ", files[i], ": ", conditionMessage(e))
+NULL
+}
+)
+all_list[[i]] <- res
+if (i %% 25 == 0) cat(" ...", i, "/", length(files), "files processed\n")
+}
+ 
+all_dt <- rbindlist(all_list, use.names = TRUE, fill = TRUE)
+ 
+if (nrow(all_dt) == 0) {
+stop("No pathogens found at LEVEL == '", tax_level, "' across any file. ", 
+"Check that the PATHOGEN column is present and contains 1s.")
+}
+ 
+# Some taxa may appear more than once per sample -> sum
+all_dt <- all_dt[, .(value = sum(value, na.rm = TRUE)), by = .(NAME, sample)]
+ 
+# Pivot - sample x species matrix
+ 
+mat_df <- all_dt %>%
+pivot_wider(names_from = sample, values_from = value, values_fill = 0) %>%
+as.data.frame()
+ 
+rownames(mat_df) <- mat_df$NAME
+mat_df$NAME <- NULL
+ 
+mat <- as.matrix(mat_df) # rows = pathogen species, columns = samples
+ 
+cat("Matrix dimensions (pathogen species x samples):", nrow(mat), "x", ncol(mat), "\n")
+ 
+# Save full matrix before subsetting to top N
+write.csv(mat, output_matrix_csv)
+cat("Full pathogen read count matrix written to:", output_matrix_csv, "\n")
+ 
+ 
+# Select top N species by mean read count 
+ 
+mean_reads <- rowMeans(mat, na.rm = TRUE)
+top_species <- names(sort(mean_reads, decreasing = TRUE))[1:min(top_n, length(mean_reads))]
+ 
+mat_top <- mat[top_species, , drop = FALSE]
+ 
+cat("Selected top", nrow(mat_top), "pathogens by mean read count.\n")
+ 
+# Log transform for visualisation 
+ 
+pseudocount <- 1
+mat_log <- log10(mat_top + pseudocount)
+ 
+ 
+# Plot heatmap 
+  
+pangia_pathogen_200_heatmap <- function(out_file, width = 14, height = 0.3 * nrow(mat_log) + 4) {
+pheatmap(
+mat_log,
+color = colorRampPalette(c("mistyrose", "palevioletred", "darkred"))(100),
+cluster_rows = TRUE,
+cluster_cols = TRUE,
+clustering_distance_rows = "euclidean",
+clustering_distance_cols = "euclidean",
+clustering_method = "ward.D2",
+show_colnames = ncol(mat_log) <= 60, # hide sample names if too many to read
+show_rownames = TRUE,
+fontsize_row = 8,
+fontsize_col = 6,
+main = paste0("panGIA Top ", nrow(mat_log), " Pathogen Species by Mean Read Count\n",
+"(log10[", abundance_col, " + pseudocount])"),
+filename = out_file,
+width = width,
+height = height
+)
+}
+ 
+pangia_pathogen_200_heatmap(output_heatmap_pdf)
+pangia_pathogen_200_heatmap(output_heatmap_png)
+ 
+cat("Heatmaps written to:\n ", output_heatmap_pdf, "\n ", output_heatmap_png, "\n")
+cat("Done.\n")
