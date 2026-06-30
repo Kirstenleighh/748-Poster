@@ -1,0 +1,78 @@
+# PanGIA heatmap - all taxa present in FIRST_200
+
+packages <- c("data.table", "pheatmap", "dplyr", "tidyr")
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new_packages)) install.packages(new_packages, repos = "https://cloud.r-project.org")
+
+library(data.table)
+library(pheatmap)
+library(dplyr)
+library(tidyr)
+
+# Parameters
+report_directory <- "~/Projects/PRJEB75460/FIRST_200/Trimmed_reads"
+file_pattern <- "\\.report\\.tsv$"
+tax_level <- "species"
+abundance_col <- "READ_COUNT"
+top_n <- 30
+
+# Find files
+report_directory <- path.expand(report_directory)
+files <- list.files(report_directory, pattern = file_pattern, full.names = TRUE)
+sample_ids <- sub(file_pattern, "", basename(files))
+
+cat("Found", length(files), "report files.\n")
+
+# Read and combine all reports - no filter, just taxonomic level
+read_one_report <- function(filepath, sample_id) {
+  dt <- fread(filepath, sep = "\t", header = TRUE, fill = TRUE, showProgress = FALSE)
+  dt <- dt[LEVEL == tax_level]
+  if (nrow(dt) == 0) return(NULL)
+  out <- dt[, .(NAME, value = as.numeric(get(abundance_col)))]
+  out[, sample := sample_id]
+  out
+}
+
+all_list <- vector("list", length(files))
+for (i in seq_along(files)) {
+  all_list[[i]] <- tryCatch(read_one_report(files[i], sample_ids[i]), error = function(e) NULL)
+}
+all_dt <- rbindlist(all_list, use.names = TRUE, fill = TRUE)
+all_dt <- all_dt[, .(value = sum(value, na.rm = TRUE)), by = .(NAME, sample)]
+
+# Pivot to matrix
+mat_df <- all_dt %>%
+  pivot_wider(names_from = sample, values_from = value, values_fill = 0) %>%
+  as.data.frame()
+rownames(mat_df) <- mat_df$NAME
+mat_df$NAME <- NULL
+mat <- as.matrix(mat_df)
+
+cat("Matrix dimensions:", nrow(mat), "x", ncol(mat), "\n")
+
+# Top N taxa by mean abundance
+mean_vals <- rowMeans(mat, na.rm = TRUE)
+top_taxa <- names(sort(mean_vals, decreasing = TRUE))[1:min(top_n, length(mean_vals))]
+mat_top <- mat[top_taxa, , drop = FALSE]
+
+# Log transform
+mat_log <- log10(mat_top + 1)
+
+# Plot
+pheatmap(
+  mat_log,
+  color = colorRampPalette(c("mistyrose", "palevioletred", "darkred"))(100),
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  clustering_method = "ward.D2",
+  show_colnames = ncol(mat_log) <= 60,
+  show_rownames = TRUE,
+  fontsize_row = 8,
+  fontsize_col = 6,
+  main = paste0("Top ", nrow(mat_log), " Species Present in FIRST_200 (panGIA)\n(log10[", abundance_col, " + 1])"),
+  filename = "pangia_first200_top_species.png",
+  width = 14,
+  height = 0.3 * nrow(mat_log) + 4
+)
+
+cat("Done. Heatmap written to pangia_first200_top_species.png\n")
