@@ -1,0 +1,62 @@
+# TRIMMING 
+
+```
+Bash script for trimming and fastqc:
+
+#!/bin/bash
+
+BASE_DIR=~/Projects/PRJEB75460/human_gut_metagenome
+TRIM_DIR=~/Projects/PRJEB75460/Trimmed_reads
+TRIM_FASTQC_DIR=~/Projects/PRJEB75460/fastqc_trimmed
+
+mkdir -p "$TRIM_DIR" "$TRIM_FASTQC_DIR"
+
+cd "$BASE_DIR"
+
+for DIR in $(ls -d SAMEA* | head -n 200); do
+
+    echo "Processing $DIR"
+
+    for R1 in "$DIR"/*_1.fastq.gz; do
+        [ -e "$R1" ] || continue
+
+        R2=${R1/_1.fastq.gz/_2.fastq.gz}
+
+        echo "Trimming $R1 and $R2"
+
+        trim_galore \
+            --paired \
+            --quality 20 \
+            --output_dir "$TRIM_DIR" \
+            "$R1" "$R2"
+
+    done
+
+done
+```
+# FastQC & MultiQC on Trimmed Reads
+```
+fastqc "$TRIM_DIR"/*.fq.gz -o "$TRIM_FASTQC_DIR"
+
+multiqc	
+```
+
+
+
+
+# Trimming remaining samples from PRJEB75460:
+
+# STEP 1 - Open a screen session
+
+screen -S parallel_trimming_11-06-26
+ 
+# STEP 2 - Activate conda environment and install GNU parallel
+
+conda activate [ENV NAME]  #conda activate trimming
+conda install -c conda-forge parallel
+ 
+# STEP 3 - Navigate to 775 folder
+
+# STEP 4 - Run Trim Galore
+
+parallel --colsep "\t" -j 10 "trim_galore --cores 8 --paired --quality 20 ~kirsten/Projects/PRJEB75460/human_gut_metagenome/*/{1}_1.fastq.gz ~kirsten/Projects/PRJEB75460/human_gut_metagenome/*/{1}_2.fastq.gz" :::: kirsten_remaining.tab
