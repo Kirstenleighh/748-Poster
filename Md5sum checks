@@ -1,5 +1,7 @@
 Cd into where raw reads are (human_gut_metagenome)
 
+To get the md5s for the downloads on the server
+
 Run:
 -------------------------------------------------------
 
@@ -7,7 +9,6 @@ md5sum SAMEA*/* > checksums.md5
 
 ----------------------------------------------------
 
-To get the md5s for the downloads on the server
 
 Then download the .tsv file from ENA as the expected downloads for comparison
 
@@ -24,6 +25,6 @@ diff /tmp/computed.txt /tmp/expected.txt
 
 --------------------------------------------------
 
-Any that are different, remove and redownload 
+Any samples showing different md5 (downloaded vs expected from ENA), remove and redownload 
 
-Run the previous code again and see if the outcome is still the same, if so – issue with Zoe upload and shouldn’t be included in analysis 
+Run the previous code again and see if the outcome is still the same, if so – issue with Zoe upload and samples shouldn’t be included in analysis 
