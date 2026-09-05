@@ -1,0 +1,222 @@
+# Species heatmaps for top 50 most abundant, in the 3 seperate bioprojects
+
+import os
+import glob
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+# directories
+
+output_dir = "/pub60/kirsten/Projects/Results1/Section_1_Heatmaps"
+os.makedirs(output_dir, exist_ok=True)
+
+
+# Bracken directories
+bracken_dirs = {
+    "60": [
+        "/pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_773_results",
+        "/pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_200_results",
+    ],
+    "62": [
+        "/pub60/kirsten/Projects/PRJEB75462/Bracken_results_newdb_62",
+    ],
+    "63": [
+        "/pub60/kirsten/Projects/PRJEB75463/Bracken_results_newdb_63",
+    ],
+}
+
+
+# Existing species matrices
+species_matrices = {
+    "60": "/pub60/kirsten/Projects/PRJEB75460/bracken_species_matrix_60.csv",
+    "62": "/pub60/kirsten/Projects/PRJEB75462/bracken_species_matrix_62.csv",
+    "63": "/pub60/kirsten/Projects/PRJEB75463/bracken_species_matrix_63.csv",
+}
+
+
+# create full genus matrix from bracken files
+def make_genus_matrix(directories):
+
+    tables = []
+
+    for directory in directories:
+
+        files = glob.glob(os.path.join(directory, "*.bracken"))
+
+        print(f"Reading {len(files)} Bracken files from:")
+        print(directory)
+
+        for f in files:
+
+            sample = os.path.basename(f).replace(".bracken", "")
+
+            df = pd.read_csv(f, sep="\t")
+
+            # Keep genus-level assignments
+            df = df[df["taxonomy_lvl"] == "G"][
+                ["name", "fraction_total_reads"]
+            ].copy()
+
+            # Remove duplicate genus names if present
+            df = df.drop_duplicates("name")
+
+            # Taxa as rows
+            df = df.set_index("name")
+
+            # Sample as column
+            df.columns = [sample]
+
+            tables.append(df)
+
+    # Combine all samples
+    matrix = pd.concat(tables, axis=1).fillna(0)
+
+    return matrix
+
+
+# top 50 species heatmaps
+
+def make_heatmap(matrix, cohort, level):
+
+    # Select top 50 by mean abundance
+
+    top50 = (
+        matrix.mean(axis=1)
+        .sort_values(ascending=False)
+        .head(50)
+        .index
+    )
+
+    top_matrix = matrix.loc[top50].copy()
+
+    if level == "species":
+        top_matrix.index = (
+            top_matrix.index
+            .str.replace(r"\s*\([^)]*\)", "", regex=True)
+            .str.strip()
+        )
+
+    # Save matrix
+
+    top_matrix_file = os.path.join(
+        output_dir,
+        f"PRJEB754{cohort}_{level}_top50_matrix.tsv"
+    )
+
+    top_matrix.to_csv(
+        top_matrix_file,
+        sep="\t"
+    )
+
+    # Log transform for plotting
+
+    plot_matrix = np.log10(top_matrix + 1e-6)
+
+    # Plot
+
+    plt.figure(figsize=(20, 14))
+
+    sns.heatmap(
+        plot_matrix,
+        cmap="Blues",
+        xticklabels=False,
+        yticklabels=True,
+        cbar_kws={
+            "label": "log10(relative abundance + 1e-6)"
+        }
+    )
+
+    plt.title(
+        f"PRJEB754{cohort}: Top 50 most abundant {level}",
+        fontsize=18
+    )
+
+    plt.xlabel("Samples", fontsize=16)
+    plt.ylabel(level.capitalize(), fontsize=16)
+
+    plt.yticks(fontsize=12)
+    plt.xticks(fontsize=12)
+
+    # Save figure
+
+    outfile = os.path.join(
+        output_dir,
+        f"PRJEB754{cohort}_{level}_top50_heatmap.png"
+    )
+
+    plt.savefig(
+        outfile,
+        dpi=300,
+        bbox_inches="tight"
+    )
+
+    plt.close()
+
+    print(f"Saved: {outfile}")
+
+
+# process species
+print()
+print("SPECIES HEATMAPS")
+
+for cohort, matrix_file in species_matrices.items():
+
+    print()
+    print(f"Reading species matrix for cohort {cohort}")
+    print(matrix_file)
+
+    matrix = pd.read_csv(
+        matrix_file,
+        index_col=0
+    )
+
+    print(
+        f"Matrix dimensions: "
+        f"{matrix.shape[0]} taxa x {matrix.shape[1]} samples"
+    )
+
+    make_heatmap(
+        matrix,
+        cohort,
+        "species"
+    )
+
+
+# Process genera
+
+print()
+print("GENUS MATRICES + HEATMAPS")
+
+for cohort, directories in bracken_dirs.items():
+
+    print()
+    print(f"Processing genus matrix for cohort {cohort}")
+
+    genus_matrix = make_genus_matrix(directories)
+
+    print(
+        f"Genus matrix dimensions: "
+        f"{genus_matrix.shape[0]} taxa x {genus_matrix.shape[1]} samples"
+    )
+
+    # Save full genus matrix
+
+    genus_file = os.path.join(
+        output_dir,
+        f"bracken_genus_matrix_{cohort}.csv"
+    )
+
+    genus_matrix.to_csv(genus_file)
+
+    print(f"Saved full genus matrix: {genus_file}")
+
+    # Make heatmap
+
+    make_heatmap(
+        genus_matrix,
+        cohort,
+        "genera"
+    )
