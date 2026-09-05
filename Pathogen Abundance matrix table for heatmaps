@@ -1,0 +1,383 @@
+#!/usr/bin/env python3
+
+import os
+import glob
+import pandas as pd
+
+
+# 13 TARGET PATHOGENS
+
+pathogens = {
+    "Clostridioides difficile": 1496,
+    "Clostridium perfringens": 1502,
+    "Escherichia coli": 562,
+    "Campylobacter jejuni": 197,
+    "Listeria monocytogenes": 1639,
+    "Salmonella enterica": 28901,
+    "Shigella sonnei": 624,
+    "Yersinia enterocolitica": 630,
+    "Vibrio cholerae": 666,
+    "Giardia duodenalis": 5741,
+    "Cryptosporidium parvum": 5807,
+    "Cyclospora cayetanensis": 88456,
+    "Human adenovirus F": 130309
+}
+
+taxid_to_pathogen = {
+    str(taxid): pathogen
+    for pathogen, taxid in pathogens.items()
+}
+
+
+# BRACKEN DIRECTORIES
+
+cohort_dirs = {
+
+    "PRJEB75460": [
+        "/pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_200_results",
+        "/pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_773_results"
+    ],
+
+    "PRJEB75462": [
+        "/pub60/kirsten/Projects/PRJEB75462/Bracken_results_newdb_62"
+    ],
+
+    "PRJEB75463": [
+        "/pub60/kirsten/Projects/PRJEB75463/Bracken_results_newdb_63"
+    ]
+}
+
+
+# OUTPUT DIRECTORY
+
+output_dir = (
+    "/pub60/kirsten/Projects/Results1/"
+    "Section_3_pathogens/heatmap"
+)
+
+os.makedirs(output_dir, exist_ok=True)
+
+
+# PROCESS ALL BRACKEN FILES
+
+all_records = []
+
+for cohort, directories in cohort_dirs.items():
+
+    files = []
+
+    for directory in directories:
+        files.extend(
+            glob.glob(
+                os.path.join(directory, "*.bracken")
+            )
+        )
+
+    # Remove duplicate paths
+    files = sorted(set(files))
+
+    print(f"{cohort}: found {len(files)} Bracken files")
+
+    for filepath in files:
+
+        sample = os.path.basename(filepath).replace(
+            ".bracken", ""
+        )
+
+        # Read Bracken file
+
+        try:
+
+            df = pd.read_csv(
+                filepath,
+                sep="\t"
+            )
+
+        except Exception as e:
+
+            print(
+                f"WARNING: could not read {filepath}"
+            )
+            print(e)
+            continue
+
+        # Check required columns
+
+        required_columns = {
+            "taxonomy_id",
+            "new_est_reads",
+            "fraction_total_reads"
+        }
+
+        if not required_columns.issubset(df.columns):
+
+            print(
+                f"WARNING: required columns missing in "
+                f"{filepath}"
+            )
+
+            continue
+
+        # Convert TaxID to string
+
+        df["taxonomy_id"] = (
+            df["taxonomy_id"]
+            .astype(str)
+            .str.strip()
+        )
+
+        # Create dictionary containing pathogen results
+        # for this sample
+
+        sample_hits = {}
+
+        for _, row in df.iterrows():
+
+            taxid = str(row["taxonomy_id"])
+
+            if taxid in taxid_to_pathogen:
+
+                pathogen = taxid_to_pathogen[taxid]
+
+                sample_hits[pathogen] = {
+                    "Bracken_read_count":
+                        int(row["new_est_reads"]),
+
+                    "Relative_abundance":
+                        float(row["fraction_total_reads"])
+                }
+
+        # Create ALL 13 pathogen rows even if absent
+
+        for pathogen, taxid in pathogens.items():
+
+            if pathogen in sample_hits:
+
+                read_count = sample_hits[pathogen][
+                    "Bracken_read_count"
+                ]
+
+                relative_abundance = sample_hits[pathogen][
+                    "Relative_abundance"
+                ]
+
+            else:
+
+                read_count = 0
+                relative_abundance = 0.0
+
+            all_records.append({
+
+                "Cohort": cohort,
+
+                "Sample": sample,
+
+                "Pathogen": pathogen,
+
+                "TaxID": taxid,
+
+                "Bracken_read_count":
+                    read_count,
+
+                "Relative_abundance":
+                    relative_abundance
+            })
+
+
+# CREATE DATAFRAME
+
+complete = pd.DataFrame(all_records)
+
+
+if complete.empty:
+
+    raise RuntimeError(
+        "No records were generated. "
+        "Check the Bracken directories."
+    )
+
+
+# SORT DATA
+
+cohort_order = [
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+pathogen_order = list(pathogens.keys())
+
+complete["Cohort"] = pd.Categorical(
+    complete["Cohort"],
+    categories=cohort_order,
+    ordered=True
+)
+
+complete["Pathogen"] = pd.Categorical(
+    complete["Pathogen"],
+    categories=pathogen_order,
+    ordered=True
+)
+
+complete = complete.sort_values(
+    ["Cohort", "Sample", "Pathogen"]
+)
+
+
+# SAVE LONG-FORM TABLE
+
+long_output = os.path.join(
+    output_dir,
+    "13_pathogens_relative_abundance_long.tsv"
+)
+
+complete.to_csv(
+    long_output,
+    sep="\t",
+    index=False
+)
+
+print()
+print(
+    f"Saved long table: {long_output}"
+)
+
+
+# CREATE WIDE RELATIVE-ABUNDANCE TABLE
+
+wide = complete.pivot_table(
+    index="Pathogen",
+    columns=["Cohort", "Sample"],
+    values="Relative_abundance",
+    fill_value=0,
+    observed=False
+)
+
+wide = wide.reindex(
+    pathogen_order
+)
+
+
+# Flatten multi-level column names
+
+wide.columns = [
+    f"{cohort}_{sample}"
+    for cohort, sample in wide.columns
+]
+
+
+# SAVE WIDE TABLE
+
+wide_output = os.path.join(
+    output_dir,
+    "13_pathogens_relative_abundance_wide.tsv"
+)
+
+wide.to_csv(
+    wide_output,
+    sep="\t"
+)
+
+print(
+    f"Saved wide table: {wide_output}"
+)
+
+
+# CREATE LOG10 TABLE
+# log10(1 + RPM)
+
+log_wide = wide * 1_000_000
+
+import numpy as np
+
+log_wide = np.log10(1 + log_wide)
+
+# SAVE LOG10 TABLE
+
+log_output = os.path.join(
+    output_dir,
+    "13_pathogens_log10_relative_abundance.tsv"
+)
+
+log_wide.to_csv(
+    log_output,
+    sep="\t"
+)
+
+print(
+    f"Saved log10 table: {log_output}"
+)
+
+
+# CHECK SAMPLE COUNTS
+
+print()
+print("SAMPLE COUNTS")
+
+sample_counts = (
+    complete[
+        ["Cohort", "Sample"]
+    ]
+    .drop_duplicates()
+    .groupby("Cohort", observed=False)
+    .size()
+)
+
+print(sample_counts)
+
+
+# TOTAL SAMPLE COUNT
+
+total_samples = (
+    complete[
+        ["Cohort", "Sample"]
+    ]
+    .drop_duplicates()
+    .shape[0]
+)
+
+print()
+print(
+    f"Total unique samples: {total_samples}"
+)
+
+
+# EXPECTED COUNTS
+
+expected = {
+    "PRJEB75460": 973,
+    "PRJEB75462": 995,
+    "PRJEB75463": 998
+}
+
+print()
+print("EXPECTED VS ACTUAL")
+
+for cohort in cohort_order:
+
+    actual = sample_counts.get(cohort, 0)
+
+    print(
+        f"{cohort}: "
+        f"expected={expected[cohort]}, "
+        f"actual={actual}"
+    )
+
+
+# CHECK TOTAL NUMBER OF ROWS
+
+expected_rows = 2966 * 13
+
+actual_rows = len(complete)
+
+print()
+print(
+    f"Expected pathogen rows: {expected_rows}"
+)
+
+print(
+    f"Actual pathogen rows:   {actual_rows}"
+)
+
+print()
+print("Done.")
