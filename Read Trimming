@@ -60,3 +60,61 @@ conda install -c conda-forge parallel
 # STEP 4 - Run Trim Galore
 
 parallel --colsep "\t" -j 10 "trim_galore --cores 8 --paired --quality 20 ~kirsten/Projects/PRJEB75460/human_gut_metagenome/*/{1}_1.fastq.gz ~kirsten/Projects/PRJEB75460/human_gut_metagenome/*/{1}_2.fastq.gz" :::: kirsten_remaining.tab
+
+
+
+# PRJEB75462:
+
+# STEP 1 - Open a screen session
+
+screen -S 62trimming
+ 
+# STEP 2 - Activate conda environment and install GNU parallel
+
+conda activate [ENV NAME]  #conda activate trimming
+conda install -c conda-forge parallel
+ 
+# STEP 3 - Navigate to PRJEB75462 folder
+
+# Step 4 - Make sample list for samples in the subset 
+
+find ~/Projects/PRJEB75462/PRJEB75462_subset1000 -mindepth 2 -maxdepth 2 -name "*_1.fastq.gz" | awk -F'/' '{dir=$(NF-1); file=$NF; sub(/_1\.fastq\.gz$/, "", file); print dir, file}' > sample_list.txt
+
+# STEP 5 - Run Trim Galore
+
+parallel --colsep ' ' -j 10 'trim_galore --cores 8 --paired --quality 20 ~/Projects/PRJEB75462/PRJEB75462_subset1000/{1}/{2}_1.fastq.gz ~/Projects/PRJEB75462/PRJEB75462_subset1000/{1}/{2}_2.fastq.gz' :::: sample_list.txt
+
+
+# Find the trimmed reads:
+find ~/Projects/PRJEB75462/PRJEB75462_subset1000 -name "*_val_*.fq.gz" | head
+
+# Count/check progress:
+find ~/Projects/PRJEB75462/PRJEB75462_subset1000 -name "*_val_*.fq.gz" | wc -l
+
+
+# PRJEB75463:
+
+# STEP 1 - Open a screen session
+
+screen -S 63trimming
+ 
+# STEP 2 - Activate conda environment and install GNU parallel
+
+conda activate [ENV NAME]  #conda activate trimming
+conda install -c conda-forge parallel
+ 
+# STEP 3 - Navigate to PRJEB75463 folder
+
+# Step 4 - Make sample list for samples in the subset 
+
+find ~/Projects/PRJEB75463/PRJEB75463_subset1000 -mindepth 2 -maxdepth 2 -name "*_1.fastq.gz" | awk -F'/' '{dir=$(NF-1); file=$NF; sub(/_1\.fastq\.gz$/, "", file); print dir, file}' > sample_list63.txt
+
+# STEP 5 - Run Trim Galore
+
+parallel --colsep ' ' -j 10 'trim_galore --cores 8 --paired --quality 20 ~/Projects/PRJEB75463/PRJEB75463_subset1000/{1}/{2}_1.fastq.gz ~/Projects/PRJEB75463/PRJEB75463_subset1000/{1}/{2}_2.fastq.gz' :::: sample_list63.txt
+
+# Find the trimmed reads:
+find ~/Projects/PRJEB75463/PRJEB75463_subset1000 -name "*_val_*.fq.gz" | head
+
+# Count/check progress:
+find ~/Projects/PRJEB75463/PRJEB75463_subset1000 -name "*_val_*.fq.gz" | wc -l
