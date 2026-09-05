@@ -5,40 +5,35 @@ FastQC v0.12.1, MultiQC v1.15
 
 Example bash script:
 
-```
 nano Run_fastqc_200.sh
-```
 
-```
+
+
 #!/bin/bash
 
-BASE_DIR=~/Projects/PRJEB75460/human_gut_metagenome
-OUT_DIR=~/Projects/PRJEB75460/fastqc_results
+BASE_DIR=~/Projects/PRJEB75460/human_gut_metagenome # define dir with fastq files in
+OUT_DIR=~/Projects/PRJEB75460/fastqc_results # # define the dir where the fastqc output reports will be saved
 
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT_DIR" # make the directory for the reports 
 
-ls -d $BASE_DIR/SAMEA* | head -n 200 | while read sample
+ls -d $BASE_DIR/SAMEA* | head -n 200 | while read sample # identify the first 200 sample directories within the base directory 
 do
-    echo "Processing $sample"
-    fastqc -t 8 $sample/*.fastq.gz -o $OUT_DIR
-done
+    echo "Processing $sample" # print current sample 
+    fastqc -t 8 $sample/*.fastq.gz -o $OUT_DIR # run fastqc on fastq files within the current sample dir 
+Done, -t 8 uses 8 threads for processing
 
 echo "FastQC complete"
 
-Multiqc 
-```
+Multiqc # summary of fastqc reports of the 200 samples
 
-Control O, 
-enter, and  
+multiqc ~/Projects/PRJEB75460/fastqc_results -o ~/Projects/PRJEB75460/fastqc_results
+
+
+Control O, enter, and
 control X to exit
 
-Ensure script is executable after editing:
-```
+Make sure script is executable after editing:
 chmod +x Run_fastqc_200.sh
-```
 
-Then use screen session so it will still run even if logged out:
 
-```
 screen -S ./fastqc file name here 
-```
