@@ -1,0 +1,916 @@
+# Bray Curtis Analysis 
+
+#!/usr/bin/env python
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from skbio.diversity import beta_diversity
+from skbio.stats.ordination import pcoa
+from skbio.stats.distance import permanova
+
+
+# directories
+
+output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
+
+genus_dir = "/pub60/kirsten/Projects/Results1/Section_1_Heatmaps"
+
+os.makedirs(output_dir, exist_ok=True)
+
+
+#input matrices
+
+genus_files = {
+    "PRJEB75460": os.path.join(
+        genus_dir,
+        "kraken_genus_matrix_60.csv"
+    ),
+
+    "PRJEB75462": os.path.join(
+        genus_dir,
+        "kraken_genus_matrix_62.csv"
+    ),
+
+    "PRJEB75463": os.path.join(
+        genus_dir,
+        "kraken_genus_matrix_63.csv"
+    ),
+}
+
+
+# Read and combine matrices
+
+print()
+print("READING GENUS MATRICES")
+
+matrices = []
+
+for cohort, filename in genus_files.items():
+
+    print()
+    print(f"Reading {cohort}")
+    print(filename)
+
+    df = pd.read_csv(
+        filename,
+        index_col=0
+    )
+
+    print(
+        f"Original dimensions: "
+        f"{df.shape[0]} genera x {df.shape[1]} samples"
+    )
+
+    # Make sure all abundance values are numeric
+    df = df.apply(
+        pd.to_numeric,
+        errors="coerce"
+    ).fillna(0)
+
+    # Add cohort to sample names
+    # This prevents duplicate sample IDs between datasets
+    df.columns = [
+        f"{cohort}_{sample}"
+        for sample in df.columns
+    ]
+
+    matrices.append(
+        (cohort, df)
+    )
+
+
+#combine taxa
+print()
+print("COMBINING MATRICES")
+
+combined = pd.concat(
+    [x[1] for x in matrices],
+    axis=1,
+    join="outer"
+).fillna(0)
+
+print(
+    f"Combined dimensions: "
+    f"{combined.shape[0]} genera x "
+    f"{combined.shape[1]} samples"
+)
+
+
+# Remove genera with 0 abundance
+
+combined = combined.loc[
+    combined.sum(axis=1) > 0
+]
+
+print(
+    f"Genera remaining after removing all zero taxa: "
+    f"{combined.shape[0]}"
+)
+
+
+# Save combined matrix
+combined_file = os.path.join(
+    output_dir,
+    "combined_genus_matrix_60_62_63.csv"
+)
+
+combined.to_csv(
+    combined_file
+)
+
+print()
+print(f"Saved combined genus matrix:")
+print(combined_file)
+
+
+# data prep for bray curtis
+
+# scikit-bio expects:
+# rows = samples
+# columns = taxa
+
+sample_matrix = combined.T
+
+print()
+print(
+    f"Sample matrix for Bray-Curtis: "
+    f"{sample_matrix.shape[0]} samples x "
+    f"{sample_matrix.shape[1]} genera"
+)
+
+
+# check for neg values
+if (sample_matrix.values < 0).any():
+
+    raise ValueError(
+        "Negative abundance values detected."
+    )
+
+
+# CALCULATE BRAY-CURTIS
+
+print()
+print("CALCULATING BRAY-CURTIS DISTANCES")
+
+distance_matrix = beta_diversity(
+    metric="braycurtis",
+    counts=sample_matrix.values,
+    ids=sample_matrix.index.tolist()
+)
+
+print(
+    f"Distance matrix created for "
+    f"{len(sample_matrix)} samples."
+)
+
+
+# save BC matrix
+bray_file = os.path.join(
+    output_dir,
+    "bray_curtis_genus_60_62_63.tsv"
+)
+
+distance_matrix.to_data_frame().to_csv(
+    bray_file,
+    sep="\t"
+)
+
+print()
+print(f"Saved Bray-Curtis distance matrix:")
+print(bray_file)
+
+
+# PCoA
+
+print()
+print("RUNNING PCoA")
+
+pcoa_results = pcoa(
+    distance_matrix
+)
+
+print(
+    f"PCoA completed."
+)
+
+print()
+print("Variance explained:")
+print(
+    pcoa_results.proportion_explained.head(5)
+)
+
+
+# Save PCoA coordinates
+
+pcoa_coords = pcoa_results.samples.copy()
+
+pcoa_coords["sample"] = pcoa_coords.index
+
+pcoa_coords["cohort"] = [
+    sample.split("_", 1)[0]
+    for sample in pcoa_coords.index
+]
+
+pcoa_file = os.path.join(
+    output_dir,
+    "bray_curtis_pcoa_coordinates.tsv"
+)
+
+pcoa_coords.to_csv(
+    pcoa_file,
+    sep="\t",
+    index=False
+)
+
+print()
+print(f"Saved PCoA coordinates:")
+print(pcoa_file)
+
+
+# PCoA VARIANCE
+
+pc1 = (
+    pcoa_results.proportion_explained["PC1"] * 100
+)
+
+pc2 = (
+    pcoa_results.proportion_explained["PC2"] * 100
+)
+
+
+# PCoA plot
+
+print()
+print("CREATING PCoA PLOT")
+
+colours = {
+    "PRJEB75460": "#2166AC",
+    "PRJEB75462": "#4DAF4A",
+    "PRJEB75463": "#B2182B"
+}
+
+plt.figure(
+    figsize=(10, 8)
+)
+
+sns.scatterplot(
+    data=pcoa_coords,
+    x="PC1",
+    y="PC2",
+    hue="cohort",
+    hue_order=[
+        "PRJEB75460",
+        "PRJEB75462",
+        "PRJEB75463"
+    ],
+    palette=colours,
+    alpha=0.55,
+    s=35,
+    edgecolor=None
+)
+
+plt.xlabel(
+    f"PCoA1 ({pc1:.2f}% variance)",
+    fontsize=13
+)
+
+plt.ylabel(
+    f"PCoA2 ({pc2:.2f}% variance)",
+    fontsize=13
+)
+
+plt.title(
+    "Bray-Curtis PCoA of Genus Composition",
+    fontsize=16,
+    fontweight="bold"
+)
+
+plt.legend(
+    title="ZOE cohort",
+    frameon=True
+)
+
+plt.tight_layout()
+
+
+# Save PCoA figure
+pcoa_png = os.path.join(
+    output_dir,
+    "bray_curtis_pcoa_genus.png"
+)
+
+pcoa_pdf = os.path.join(
+    output_dir,
+    "bray_curtis_pcoa_genus.pdf"
+)
+
+plt.savefig(
+    pcoa_png,
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    pcoa_pdf,
+    bbox_inches="tight"
+)
+
+plt.close()
+
+print()
+print(f"Saved PCoA PNG:")
+print(pcoa_png)
+
+print()
+print(f"Saved PCoA PDF:")
+print(pcoa_pdf)
+
+
+# PERMANOVA
+
+print()
+print("PERMANOVA")
+
+
+# Create grouping variable
+groups = pd.Series(
+    [
+        sample.split("_", 1)[0]
+        for sample in sample_matrix.index
+    ],
+    index=sample_matrix.index,
+    name="cohort"
+)
+
+
+permanova_results = permanova(
+    distance_matrix,
+    grouping=groups,
+    permutations=999
+)
+
+
+print()
+print(permanova_results)
+
+
+# Save PERMANOVA results
+
+permanova_file = os.path.join(
+    output_dir,
+    "permanova_bray_curtis_genus.txt"
+)
+
+with open(
+    permanova_file,
+    "w"
+) as f:
+
+    f.write(
+        "PERMANOVA — Bray-Curtis genus composition\n"
+    )
+
+    f.write(
+        str(permanova_results)
+    )
+
+    f.write("\n")
+
+
+print()
+print(
+    f"Saved PERMANOVA results:"
+)
+print(permanova_file)
+
+
+# Summary
+print()
+print("ANALYSIS COMPLETE")
+
+print()
+print(
+    f"Total samples: {combined.shape[1]}"
+)
+
+print(
+    f"Total genera: {combined.shape[0]}"
+)
+
+print()
+print(
+    f"PCoA1 variance explained: {pc1:.2f}%"
+)
+
+print(
+    f"PCoA2 variance explained: {pc2:.2f}%"
+)
+
+print()
+print("Outputs:")
+print(combined_file)
+print(bray_file)
+print(pcoa_file)
+print(pcoa_png)
+print(pcoa_pdf)
+print(permanova_file)
+
+
+# Pairwise PERMANOVA 
+
+#!/usr/bin/env python
+
+import os
+import itertools
+import pandas as pd
+
+from skbio.stats.distance import permanova
+from skbio import DistanceMatrix
+
+
+output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
+
+distance_file = (
+    f"{output_dir}/bray_curtis_genus_60_62_63.tsv"
+)
+
+
+# read bray curtis matrix
+print()
+print("PAIRWISE PERMANOVA — BRAY-CURTIS")
+
+print()
+print("Reading distance matrix:")
+print(distance_file)
+
+distance_df = pd.read_csv(
+    distance_file,
+    sep="\t",
+    index_col=0
+)
+
+distance_df.index = distance_df.index.astype(str)
+distance_df.columns = distance_df.columns.astype(str)
+
+distance_matrix = DistanceMatrix(
+    distance_df.values,
+    ids=distance_df.index.tolist()
+)
+
+print(
+    f"Distance matrix: "
+    f"{distance_matrix.shape[0]} samples"
+)
+
+
+# select cohort
+samples = distance_matrix.ids
+
+cohorts = pd.Series(
+    [
+        sample.split("_", 1)[0]
+        for sample in samples
+    ],
+    index=samples,
+    name="cohort"
+)
+
+
+cohort_order = [
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+
+# PAIRWISE PERMANOVA
+def run_pairwise(cohort1, cohort2):
+
+    print()
+    print(f"{cohort1} vs {cohort2}")
+
+    selected_samples = cohorts[
+        cohorts.isin(
+            [cohort1, cohort2]
+        )
+    ].index.tolist()
+
+    sub_distance = distance_matrix.filter(
+        selected_samples
+    )
+
+    grouping = cohorts.loc[
+        selected_samples
+    ]
+
+    result = permanova(
+        sub_distance,
+        grouping=grouping,
+        permutations=999
+    )
+
+    # Extract values
+
+    pseudo_f = float(
+        result["test statistic"]
+    )
+
+    p_value = float(
+        result["p-value"]
+    )
+
+    n = int(
+        result["sample size"]
+    )
+
+    # Calculate R-squared
+    #
+    # R2 = pseudo-F * (groups-1) /
+    #      [pseudo-F * (groups-1) + (N-groups)]
+
+    number_groups = 2
+
+    r_squared = (
+        pseudo_f * (number_groups - 1)
+        /
+        (
+            pseudo_f * (number_groups - 1)
+            +
+            (n - number_groups)
+        )
+    )
+
+    print(
+        f"Samples: {n}"
+    )
+
+    print(
+        f"Pseudo-F: {pseudo_f:.4f}"
+    )
+
+    print(
+        f"R²: {r_squared:.6f}"
+    )
+
+    print(
+        f"Uncorrected p-value: {p_value:.6f}"
+    )
+
+    return {
+        "comparison": f"{cohort1} vs {cohort2}",
+        "cohort_1": cohort1,
+        "cohort_2": cohort2,
+        "sample_size": n,
+        "pseudo_F": pseudo_f,
+        "R2": r_squared,
+        "p_uncorrected": p_value
+    }
+
+
+# RUN ALL THREE COMPARISONS
+
+results = []
+
+for cohort1, cohort2 in itertools.combinations(
+    cohort_order,
+    2
+):
+
+    result = run_pairwise(
+        cohort1,
+        cohort2
+    )
+
+    results.append(
+        result
+    )
+
+
+results_df = pd.DataFrame(
+    results
+)
+
+
+# HOLM CORRECTION
+
+print()
+print("HOLM CORRECTION")
+
+
+# Sort by uncorrected p-value
+results_df = results_df.sort_values(
+    "p_uncorrected"
+).reset_index(
+    drop=True
+)
+
+m = len(results_df)
+
+adjusted = []
+
+for i, p in enumerate(
+    results_df["p_uncorrected"]
+):
+
+    adjusted_p = min(
+        1.0,
+        p * (m - i)
+    )
+
+    adjusted.append(
+        adjusted_p
+    )
+
+
+# Ensure Holm adjusted values are sorted
+for i in range(1, len(adjusted)):
+
+    adjusted[i] = max(
+        adjusted[i],
+        adjusted[i - 1]
+    )
+
+
+results_df["p_holm"] = adjusted
+
+
+# SIGNIFICANCE
+
+results_df["significant"] = (
+    results_df["p_holm"] < 0.05
+)
+
+
+# Print results
+print()
+
+for _, row in results_df.iterrows():
+
+    print(
+        row["comparison"]
+    )
+
+    print(
+        f"  Pseudo-F = "
+        f"{row['pseudo_F']:.4f}"
+    )
+
+    print(
+        f"  R² = "
+        f"{row['R2']:.6f}"
+    )
+
+    print(
+        f"  Uncorrected p = "
+        f"{row['p_uncorrected']:.6e}"
+    )
+
+    print(
+        f"  Holm-adjusted p = "
+        f"{row['p_holm']:.6e}"
+    )
+
+    if row["significant"]:
+        print(
+            "  Significant after Holm correction: YES"
+        )
+    else:
+        print(
+            "  Significant after Holm correction: NO"
+        )
+
+    print()
+
+
+#save as csv
+results_file = os.path.join(
+    output_dir,
+    "pairwise_permanova_bray_curtis_genus.csv"
+)
+
+results_df.to_csv(
+    results_file,
+    index=False
+)
+
+#save .txt
+text_file = os.path.join(
+    output_dir,
+    "pairwise_permanova_bray_curtis_genus.txt"
+)
+
+with open(
+    text_file,
+    "w"
+) as f:
+
+    f.write(
+        "PAIRWISE PERMANOVA — BRAY-CURTIS GENUS COMPOSITION\n"
+    )
+
+    for _, row in results_df.iterrows():
+
+        f.write(
+            f"{row['comparison']}\n"
+        )
+
+        f.write(
+            f"  Sample size = {row['sample_size']}\n"
+        )
+
+        f.write(
+            f"  Pseudo-F = {row['pseudo_F']:.6f}\n"
+        )
+
+        f.write(
+            f"  R2 = {row['R2']:.6f}\n"
+        )
+
+        f.write(
+            f"  Uncorrected p = "
+            f"{row['p_uncorrected']:.6e}\n"
+        )
+
+        f.write(
+            f"  Holm-adjusted p = "
+            f"{row['p_holm']:.6e}\n"
+        )
+
+        f.write(
+            f"  Significant = "
+            f"{'YES' if row['significant'] else 'NO'}\n\n"
+        )
+
+print(f"CSV: {results_file}")
+print(f"TXT: {text_file}")
+
+
+
+# Genus taxa contributions to beta diversity (results table)
+
+#!/usr/bin/env python3
+
+import os
+import numpy as np
+import pandas as pd
+
+
+input_file = "combined_genus_matrix_60_62_63.csv"
+
+output_dir = "BETA_taxa_contributions"
+
+os.makedirs(output_dir, exist_ok=True)
+
+#read in data
+
+df = pd.read_csv(
+    input_file,
+    index_col=0
+)
+
+print(f"Genera: {df.shape[0]}")
+print(f"Samples: {df.shape[1]}")
+
+
+# identify bioproject from sample name
+
+sample_names = df.columns
+
+cohorts = pd.Series(
+    [
+        sample.split("_", 1)[0]
+        for sample in sample_names
+    ],
+    index=sample_names
+)
+
+print()
+print("Samples per BioProject:")
+print(cohorts.value_counts())
+
+
+# Bray-curtis
+#
+# For each genus:
+#
+# contribution =
+# (mean abundance in group 1 -
+#  mean abundance in group 2)
+#
+# divided by sum of absolute differences across all genera
+#
+# Gives the proportional contribution of each genus
+# to the overall difference in mean community composition/beta div.
+
+
+comparisons = [
+    ("PRJEB75460", "PRJEB75462"),
+    ("PRJEB75460", "PRJEB75463"),
+    ("PRJEB75462", "PRJEB75463"),
+]
+
+
+for group1, group2 in comparisons:
+
+    print()
+    print("=" * 60)
+    print(f"{group1} vs {group2}")
+    print("=" * 60)
+
+    samples1 = cohorts[cohorts == group1].index
+    samples2 = cohorts[cohorts == group2].index
+
+    data1 = df[samples1]
+    data2 = df[samples2]
+
+    # Mean abundance for each genus
+    mean1 = data1.mean(axis=1)
+    mean2 = data2.mean(axis=1)
+
+    # Absolute difference
+    difference = (mean1 - mean2).abs()
+
+    # Direction of difference
+    direction = np.where(
+        mean1 > mean2,
+        f"Higher in {group1}",
+        np.where(
+            mean2 > mean1,
+            f"Higher in {group2}",
+            "Equal"
+        )
+    )
+
+    # Total difference
+    total_difference = difference.sum()
+
+    # Contribution
+    contribution = (
+        difference / total_difference
+    ) * 100
+
+    # Create results table
+    results = pd.DataFrame({
+        "Genus": df.index,
+        f"Mean_{group1}": mean1.values,
+        f"Mean_{group2}": mean2.values,
+        "Absolute_difference": difference.values,
+        "Direction": direction,
+        "Contribution_percent": contribution.values
+    })
+
+    # Sort largest contributors first
+    results = results.sort_values(
+        "Contribution_percent",
+        ascending=False
+    ).reset_index(drop=True)
+
+    # Cumulative contribution
+    results["Cumulative_percent"] = (
+        results["Contribution_percent"].cumsum()
+    )
+
+    # Save all genera
+    filename = (
+        f"{group1}_vs_{group2}_taxa_contributions.csv"
+    )
+
+    output_file = os.path.join(
+        output_dir,
+        filename
+    )
+
+    results.to_csv(
+        output_file,
+        index=False
+    )
+
+    print()
+    print(f"Saved: {output_file}")
+
+    # Print top 20
+    print()
+    print("Top 20 contributing genera:")
+    print(
+        results[
+            [
+                "Genus",
+                "Contribution_percent",
+                "Cumulative_percent",
+                "Direction"
+            ]
+        ].head(20).to_string(index=False)
+    )
+
+
+print()
+print("=" * 60)
+print("ANALYSIS COMPLETE")
+print("=" * 60)
+
+print()
+print(f"Results saved in: {output_dir}")
