@@ -11,20 +11,104 @@ md5sum SAMEA*/* > checksums.md5
 
 
 Then download the .tsv file from ENA as the expected downloads for comparison
-
+Sort into two .txt files:
 
 Run:
 ----------------------------------------------
 
-awk '{print $1}' ~/Projects/PRJEB75460/human_gut_metagenome/checksums.md5 | sort > /tmp/computed.txt
+awk '{print $1}' ~/Projects/PRJEB75460/human_gut_metagenome/checksums.md5 | sort > computed.txt
 
 tail -n +2 ~/Projects/PRJEB75460/filereport_read_run_PRJEB75460.tsv | \
-    awk -F'\t' '{split($4, a, ";"); print a[1]; print a[2]}' | sort > /tmp/expected.txt
+    awk -F'\t' '{split($4, a, ";"); print a[1]; print a[2]}' | sort > expected.txt
 
-diff /tmp/computed.txt /tmp/expected.txt
+# -n +2 removes header
+# TSV columns: 
+# $1 = run_accession 
+# $2 = study_accession 
+# $3 = sample_accession 
+# $4 = fastq_md5
+
+# split($4, a, ";") separates the two checksums into: # a[1] = MD5 checksum for the first FASTQ file (R1) # a[2] = MD5 checksum for the second FASTQ file (R2)
+
+
+# Compare 
+# use diff to compare .txt files (downloaded and expected), any differences indicate files that havent been up or downloaded correctly, need to be checked (removed and redownloaded or removed if a fault on ZOEs side)
+
+diff computed.txt expected.txt
 
 --------------------------------------------------
 
 Any samples showing different md5 (downloaded vs expected from ENA), remove and redownload 
 
 Run the previous code again and see if the outcome is still the same, if so – issue with Zoe upload and samples shouldn’t be included in analysis 
+
+
+
+
+
+# Subset for PRJEB75462 and PRJEB75463:
+
+# PRJEB75462
+
+Md5sum SAMEA1156*/*.fastq.gz > PRJEB75462_MD5.txt
+
+
+shuf -n 1000 # test subset for md5 , check this a few times 
+
+# Subsetting ~1000 samples 
+# From md5
+
+grep '_1.fastq.gz' PRJEB75462_MD5.txt | shuf -n 1000 | sed -e 's"_1.fastq.gz""g' | awk '{print $2}' | sed -e 's"/"\t"g' | awk '{print $1}'
+
+grep '_1.fastq.gz' PRJEB75462_MD5.txt | shuf -n 1000 | sed 's/_1.fastq.gz//g' | awk '{print $2}' | sed 's/\//\t/g' | awk '{print $1}' > PRJEB75462_1000_SAMEA.txt
+
+# Cd into PRJEB75462
+
+Mkdir PRJEB75462_subset1000
+
+# Cd into PRJEB75462/human_gut_metagenome
+
+while read sample; do cp -r "$sample" ../PRJEB75462_subset1000/; done < PRJEB75462_1000_SAMEA.txt
+
+
+
+# had to delete and redownload another samea:
+
+wget -c -P SAMEA115681999 https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR139/001/ERR13955501/ERR13955501_1.fastq.gz
+
+wget -c -P SAMEA115681999 https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR139/001/ERR13955501/ERR13955501_2.fastq.gz
+
+# And then reran:
+
+md5sum SAMEA1156*/*.fastq.gz > PRJEB75462_MD5_new.txt
+
+
+grep -f PRJEB75462_1000_SAMEA.txt PRJEB75462_MD5_new.txt > PRJEB75462_1000_MD5_new.txt
+
+# Check number of samples (should be 2000)
+wc -l PRJEB75462_1000_MD5_new.txt
+
+
+
+
+# PRJEB75463
+
+Md5sum SAMEA…*/*.fastq.gz > PRJEB75463_MD5.txt
+
+shuf -n 1000 # test subset for md5 
+ 
+# Subsetting 1000 samples 
+# From md5
+
+grep '_1.fastq.gz' PRJEB75463_MD5.txt | shuf -n 1000 | sed 's/_1.fastq.gz//g' | awk '{print $2}' | sed 's/\//\t/g' | awk '{print $1}' > PRJEB75463_1000_SAMEA.txt
+
+# Cd into PRJEB75463
+
+Mkdir PRJEB75463_subset1000
+
+# Cd into PRJEB75463/human_gut_metagenome
+
+while read sample; do cp -r "$sample" ../PRJEB75463_subset1000/; done < PRJEB75463_1000_SAMEA.txt
+
+
+# MD5 ran again on subsets, 5 samples were removed from PRJEB75462 and 2 from PRJEB75463 due to mismatches remaining 
