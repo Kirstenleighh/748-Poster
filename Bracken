@@ -1,0 +1,115 @@
+mkdir -p Bracken_newdb_200_results
+First 200 .sh :
+
+#!/bin/bash
+for KREPORT in kraken2_results_first200_newdb/*.kreport2; do # loop through every .kreport2 generated for the first 200 samples
+    SAMPLE=$(basename "$KREPORT" .kreport2) # extract sample name from the kreport for id in bracken output 
+    bracken \
+        -d /pub54/edwardco/kraken2pluspfp \ # specify database required , must be same one used for kraken
+        -i "$KREPORT" \ # specify the kreport to use as each input
+        -o Bracken_newdb_200_results/${SAMPLE}.bracken \ # output file for estimates 
+        -w Bracken_newdb_200_results/${SAMPLE}.breport \ # output file for bracken adjusted kreport
+        -r 150 \ # r = read length used for the abundacne estimates, 150 bp reads 
+        -l S \ # s = species 
+        -t 10 # specify the minimum number of reads required for a taxon to be included in abundance estimation
+Done
+
+
+Mkdir -p Bracken_newdb_773_results
+773 .sh :
+
+#!/bin/bash
+for KREPORT in kraken2_results_773_newdb/*.kreport2; do
+    SAMPLE=$(basename "$KREPORT" .kreport2)
+    bracken \
+        -d /pub54/edwardco/kraken2pluspfp \
+        -i "$KREPORT" \
+        -o Bracken_newdb_773_results/${SAMPLE}.bracken \
+        -w Bracken_newdb_773_results/${SAMPLE}.breport \
+        -r 150 \
+        -l S \
+        -t 10
+done
+
+
+
+62:
+
+mkdir -p Bracken_results_newdb_62
+
+
+
+#!/bin/bash
+
+for KREPORT in kraken2_results_newdb_62/*.kreport2; do
+    # Loop through every Kraken2 taxonomic report for PRJEB75462
+
+
+    SAMPLE=$(basename "$KREPORT" .kreport2)
+    # extract sample name from the Kraken2 report filename
+
+    if [ -f "Bracken_results_newdb_62/${SAMPLE}.bracken" ]; then
+        echo "Skipping ${SAMPLE} - Bracken already completed"
+        continue
+    fi
+    # If a Bracken output already exists for this sample, skip it
+    # allows the script to be restarted if needed (issues with disk space)
+
+
+    bracken \
+        -d /pub60/kirsten/databases \
+        -i "$KREPORT" \
+        -o "Bracken_results_newdb_62/${SAMPLE}.bracken" \
+        -w "Bracken_results_newdb_62/${SAMPLE}.breport" \
+        -r 150 \
+        -l S \
+        -t 10
+    # use same PlusPFP database used for Kraken2
+    # -d = Kraken2 database
+    # -i = Kraken2 .kreport2 input
+    # -o = Bracken abundance output
+    # -w = Bracken adjusted Kraken style report
+    # -r 150 = read length = 150 bp
+    # -l S = estimate abundance at species level
+    # -t 10 = minimum read threshold for inclusion
+done
+
+
+63:
+
+mkdir -p Bracken_results_newdb_63
+
+#!/bin/bash
+
+for KREPORT in kraken2_results_newdb_63/*.kreport2; do
+    # Loop through every Kraken2 taxonomic report for PRJEB75463
+
+
+    SAMPLE=$(basename "$KREPORT" .kreport2)
+    # extract sample name from the Kraken2 report filename
+
+    if [ -f "Bracken_results_newdb_63/${SAMPLE}.bracken" ]; then
+        echo "Skipping ${SAMPLE} - Bracken already completed"
+        continue
+    fi
+    # If a Bracken output already exists for this sample, skip it
+    # allows the script to be restarted if needed (issues with disk space)
+
+
+    bracken \
+        -d /pub60/kirsten/databases \
+        -i "$KREPORT" \
+        -o "Bracken_results_newdb_63/${SAMPLE}.bracken" \
+        -w "Bracken_results_newdb_63/${SAMPLE}.breport" \
+        -r 150 \
+        -l S \
+        -t 10
+    # use same PlusPFP database used for Kraken2
+    # -d = Kraken2 database
+    # -i = Kraken2 .kreport2 input
+    # -o = Bracken abundance output
+    # -w = Bracken adjusted Kraken style report
+    # -r 150 = read length = 150 bp
+    # -l S = estimate abundance at species level
+    # -t 10 = minimum read threshold for inclusion
+done
