@@ -1,0 +1,98 @@
+#!/bin/bash
+
+set -euo pipefail
+
+OUTDIR="/pub60/kirsten/Projects/Results1/Section_3_pathogens"
+OUTFILE="${OUTDIR}/pathogen_read_counts.tsv"
+
+# Pathogen list: pathogen name + TaxID
+PATHOGENS=(
+"Clostridioides difficile|1496"
+"Clostridium perfringens|1502"
+"Escherichia coli O157|1045010"
+"Campylobacter jejuni|197"
+"Listeria monocytogenes|1639"
+"Salmonella enterica serovar Enteritidis|149539"
+"Shigella sonnei|624"
+"Yersinia enterocolitica|630"
+"Vibrio cholerae|666"
+"Giardia duodenalis|5741"
+"Cryptosporidium parvum|5807"
+"Cyclospora cayetanensis|88456"
+"Human adenovirus F|130309"
+)
+
+# Header
+printf "Cohort\tSample\tPathogen\tTaxID\tBracken_read_count\n" > "$OUTFILE"
+
+process_reports() {
+
+    local cohort="$1"
+    shift
+
+    for dir in "$@"; do
+
+        find "$dir" -type f -name '*.breport' -print0 |
+        while IFS= read -r -d '' report; do
+
+            sample=$(basename "$report" .breport)
+
+            for entry in "${PATHOGENS[@]}"; do
+
+                pathogen="${entry%%|*}"
+                taxid="${entry##*|}"
+
+                # Kraken/Bracken report columns:
+                # $1 = percentage
+                # $2 = reads assigned to clade
+                # $3 = reads assigned directly to this taxon
+                # $4 = rank
+                # $5 = TaxID
+                # $6+ = taxon name
+
+                count=$(awk -v taxid="$taxid" '
+                    $5 == taxid {
+                        print $3
+                        found=1
+                        exit
+                    }
+                    END {
+                        if (!found) print 0
+                    }
+                ' "$report")
+
+                printf "%s\t%s\t%s\t%s\t%s\n" \
+                    "$cohort" \
+                    "$sample" \
+                    "$pathogen" \
+                    "$taxid" \
+                    "$count" \
+                    >> "$OUTFILE"
+
+            done
+
+        done
+
+    done
+}
+
+
+# prjeb75460
+process_reports \
+    "PRJEB75460" \
+    "/pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_200_results" \
+    "/pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_773_results"
+
+# prjeb75462
+process_reports \
+    "PRJEB75462" \
+    "/pub60/kirsten/Projects/PRJEB75462/Bracken_results_newdb_62"
+
+# prjeb75463
+process_reports \
+    "PRJEB75463" \
+    "/pub60/kirsten/Projects/PRJEB75463/Bracken_results_newdb_63"
+
+
+echo "Finished."
+echo "Output: $OUTFILE"
