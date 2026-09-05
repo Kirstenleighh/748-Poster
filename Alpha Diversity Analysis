@@ -1,0 +1,791 @@
+# Shannon diversity 
+# Violin/boxplot 
+
+#!/usr/bin/env python
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# directory and file
+output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
+
+shannon_file = (
+    f"{output_dir}/alpha_diversity_shannon_all.csv"
+)
+
+
+# read in the data
+data = pd.read_csv(shannon_file)
+
+data["shannon"] = pd.to_numeric(
+    data["shannon"],
+    errors="coerce"
+)
+
+data = data.dropna(
+    subset=["shannon"]
+)
+
+
+cohort_order = [
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+
+colours = {
+    "PRJEB75460": "#2166AC",
+    "PRJEB75462": "#4DAF4A",
+    "PRJEB75463": "#B2182B"
+}
+
+
+# significance bracket
+def add_significance_bar(
+    ax,
+    x1,
+    x2,
+    y,
+    h,
+    text
+):
+
+    ax.plot(
+        [x1, x1, x2, x2],
+        [y, y + h, y + h, y],
+        lw=1.5,
+        c="black"
+    )
+
+    ax.text(
+        (x1 + x2) / 2,
+        y + h,
+        text,
+        ha="center",
+        va="bottom",
+        fontsize=13,
+        fontweight="bold"
+    )
+
+
+# plot
+sns.set_style("whitegrid")
+
+fig, ax = plt.subplots(
+    figsize=(10, 8)
+)
+
+
+# violin plot
+sns.violinplot(
+    data=data,
+    x="cohort",
+    y="shannon",
+    order=cohort_order,
+    palette=colours,
+    inner=None,
+    cut=0,
+    linewidth=1.2,
+    saturation=0.8,
+    ax=ax
+)
+
+
+# boxplot over violin
+sns.boxplot(
+    data=data,
+    x="cohort",
+    y="shannon",
+    order=cohort_order,
+    width=0.28,
+    showfliers=False,
+    boxprops={
+        "facecolor": "white",
+        "edgecolor": "black",
+        "linewidth": 1.5,
+        "zorder": 3
+    },
+    whiskerprops={
+        "color": "black",
+        "linewidth": 1.5,
+        "zorder": 3
+    },
+    capprops={
+        "color": "black",
+        "linewidth": 1.5,
+        "zorder": 3
+    },
+    medianprops={
+        "color": "black",
+        "linewidth": 1.5,
+        "zorder": 4
+    },
+    ax=ax
+)
+
+
+# individual sample points
+sns.stripplot(
+    data=data,
+    x="cohort",
+    y="shannon",
+    order=cohort_order,
+    color="black",
+    alpha=0.25,
+    size=2,
+    jitter=0.25,
+    zorder=5,
+    ax=ax
+)
+
+
+# significance min and max
+y_min = data["shannon"].min()
+y_max = data["shannon"].max()
+y_range = y_max - y_min
+
+
+# PRJEB75460 vs PRJEB75462
+# Holm-adjusted p = 0.00328
+
+add_significance_bar(
+    ax=ax,
+    x1=0,
+    x2=1,
+    y=y_max + y_range * 0.05,
+    h=y_range * 0.015,
+    text="**"
+)
+
+
+# PRJEB75460 vs PRJEB75463
+# Holm-adjusted p = 3.25e-06
+
+add_significance_bar(
+    ax=ax,
+    x1=0,
+    x2=2,
+    y=y_max + y_range * 0.15,
+    h=y_range * 0.015,
+    text="***"
+)
+
+
+# axis and title setting
+ax.set_title(
+    "Shannon diversity across cohorts",
+    fontsize=16,
+    fontweight="bold"
+)
+
+ax.set_xlabel(
+    "Cohort",
+    fontsize=13
+)
+
+ax.set_ylabel(
+    "Shannon diversity",
+    fontsize=13
+)
+
+
+# space for sig brackets
+ax.set_ylim(
+    y_min,
+    y_max + y_range * 0.25
+)
+
+
+# save
+plt.tight_layout()
+
+png_file = (
+    f"{output_dir}/"
+    "shannon_diversity_violin_boxplot.png"
+)
+
+pdf_file = (
+    f"{output_dir}/"
+    "shannon_diversity_violin_boxplot.pdf"
+)
+
+plt.savefig(
+    png_file,
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    pdf_file,
+    bbox_inches="tight"
+)
+
+plt.close()
+
+
+
+print()
+print("SHANNON VIOLIN + BOXPLOT COMPLETE")
+
+print(f"Samples: {len(data)}")
+
+for cohort in cohort_order:
+
+    n = (
+        data["cohort"] == cohort
+    ).sum()
+
+    print(
+        f"{cohort}: n={n}"
+    )
+
+print()
+print(f"PNG: {png_file}")
+print(f"PDF: {pdf_file}")
+
+print()
+print("Significant comparisons:")
+print("PRJEB75460 vs PRJEB75462: **")
+print("PRJEB75460 vs PRJEB75463: ***")
+print("PRJEB75462 vs PRJEB75463: not significant")
+
+
+
+# Fisher's alpha diversity 
+# Violin/boxplot
+
+#!/usr/bin/env python
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+#directory
+output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
+
+fisher_file = (
+    f"{output_dir}/alpha_diversity_fisher_all.csv"
+)
+
+
+# read data
+data = pd.read_csv(fisher_file)
+
+data["fisher"] = pd.to_numeric(
+    data["fisher"],
+    errors="coerce"
+)
+
+data = data.dropna(
+    subset=["fisher"]
+)
+
+
+cohort_order = [
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+
+colours = {
+    "PRJEB75460": "#2166AC",
+    "PRJEB75462": "#4DAF4A",
+    "PRJEB75463": "#B2182B"
+}
+
+
+#plot
+sns.set_style("whitegrid")
+
+fig, ax = plt.subplots(
+    figsize=(10, 8)
+)
+
+
+# violin plot
+sns.violinplot(
+    data=data,
+    x="cohort",
+    y="fisher",
+    order=cohort_order,
+    palette=colours,
+    inner=None,
+    cut=0,
+    linewidth=1.2,
+    saturation=0.8,
+    ax=ax
+)
+
+
+# boxplot
+sns.boxplot(
+    data=data,
+    x="cohort",
+    y="fisher",
+    order=cohort_order,
+    width=0.28,
+    showfliers=False,
+    boxprops={
+        "facecolor": "white",
+        "edgecolor": "black",
+        "linewidth": 1.5,
+        "zorder": 3
+    },
+    whiskerprops={
+        "color": "black",
+        "linewidth": 1.5,
+        "zorder": 3
+    },
+    capprops={
+        "color": "black",
+        "linewidth": 1.5,
+        "zorder": 3
+    },
+    medianprops={
+        "color": "black",
+        "linewidth": 1.5,
+        "zorder": 4
+    },
+    ax=ax
+)
+
+
+# individual sample points
+sns.stripplot(
+    data=data,
+    x="cohort",
+    y="fisher",
+    order=cohort_order,
+    color="black",
+    alpha=0.25,
+    size=2,
+    jitter=0.25,
+    zorder=5,
+    ax=ax
+)
+
+
+# labels
+ax.set_title(
+    "Fisher's alpha diversity across cohorts",
+    fontsize=16,
+    fontweight="bold"
+)
+
+ax.set_xlabel(
+    "Cohort",
+    fontsize=13
+)
+
+ax.set_ylabel(
+    "Fisher's alpha",
+    fontsize=13
+)
+
+
+# save
+plt.tight_layout()
+
+png_file = (
+    f"{output_dir}/"
+    "fisher_diversity_violin_boxplot.png"
+)
+
+pdf_file = (
+    f"{output_dir}/"
+    "fisher_diversity_violin_boxplot.pdf"
+)
+
+plt.savefig(
+    png_file,
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    pdf_file,
+    bbox_inches="tight"
+)
+
+plt.close()
+
+
+print(f"Samples: {len(data)}")
+
+for cohort in cohort_order:
+
+    n = (
+        data["cohort"] == cohort
+    ).sum()
+
+    print(
+        f"{cohort}: n={n}"
+    )
+
+print()
+print(f"PNG: {png_file}")
+print(f"PDF: {pdf_file}")
+
+print()
+print("Kruskal-Wallis:")
+print("H = 5.5579")
+print("p = 0.0621")
+print("Not significant at alpha = 0.05")
+
+
+# Kruskal Wallis 
+
+#!/usr/bin/env python
+
+import pandas as pd
+from scipy.stats import kruskal
+
+
+output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
+
+shannon_file = f"{output_dir}/alpha_diversity_shannon_all.csv"
+fisher_file = f"{output_dir}/alpha_diversity_fisher_all.csv"
+
+#read data in
+shannon = pd.read_csv(shannon_file)
+fisher = pd.read_csv(fisher_file)
+
+shannon["shannon"] = pd.to_numeric(
+    shannon["shannon"],
+    errors="coerce"
+)
+
+fisher["fisher"] = pd.to_numeric(
+    fisher["fisher"],
+    errors="coerce"
+)
+
+shannon = shannon.dropna(subset=["shannon"])
+fisher = fisher.dropna(subset=["fisher"])
+
+
+cohorts = [
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+
+# SHANNON KRUSKAL-WALLIS
+
+shannon_groups = [
+    shannon.loc[
+        shannon["cohort"] == cohort,
+        "shannon"
+    ].values
+    for cohort in cohorts
+]
+
+H_shannon, p_shannon = kruskal(*shannon_groups)
+
+
+# FISHER KRUSKAL-WALLIS
+
+fisher_groups = [
+    fisher.loc[
+        fisher["cohort"] == cohort,
+        "fisher"
+    ].values
+    for cohort in cohorts
+]
+
+H_fisher, p_fisher = kruskal(*fisher_groups)
+
+
+# results
+print()
+print("KRUSKAL-WALLIS TESTS")
+
+print()
+print("Shannon diversity")
+print("------------------")
+print(f"H statistic = {H_shannon:.4f}")
+print("df = 2")
+print(f"p-value     = {p_shannon:.6e}")
+
+print()
+print("Fisher's alpha")
+print("----------------")
+print(f"H statistic = {H_fisher:.4f}")
+print("df = 2")
+print(f"p-value     = {p_fisher:.6e}")
+
+
+# Sample counts
+print()
+print("SAMPLE COUNTS")
+
+for cohort in cohorts:
+
+    n_shannon = (
+        shannon["cohort"] == cohort
+    ).sum()
+
+    n_fisher = (
+        fisher["cohort"] == cohort
+    ).sum()
+
+    print(
+        f"{cohort}: "
+        f"Shannon n={n_shannon}, "
+        f"Fisher n={n_fisher}"
+    )
+
+
+# results interpretation
+if p_shannon < 0.05:
+    print(
+        "Shannon: significant difference among cohorts "
+        "(Kruskal-Wallis p < 0.05)."
+    )
+else:
+    print(
+        "Shannon: no significant difference among cohorts "
+        "(Kruskal-Wallis p >= 0.05)."
+    )
+
+if p_fisher < 0.05:
+    print(
+        "Fisher: significant difference among cohorts "
+        "(Kruskal-Wallis p < 0.05)."
+    )
+else:
+    print(
+        "Fisher: no significant difference among cohorts "
+        "(Kruskal-Wallis p >= 0.05)."
+    )
+
+
+
+# Post hoc Dunn's for sig Shannon result 
+
+#!/usr/bin/env python
+
+import pandas as pd
+import numpy as np
+from scipy.stats import rankdata, norm
+
+# input and output files
+input_file = (
+    "/pub60/kirsten/Projects/Results1/Section_2_diversity/"
+    "alpha_diversity_shannon_all.csv" # csv for shannon div of full cohort
+)
+
+output_file = (
+    "/pub60/kirsten/Projects/Results1/Section_2_diversity/"
+    "dunn_shannon_results.csv"
+)
+
+
+# read data in
+data = pd.read_csv(input_file)
+
+data["shannon"] = pd.to_numeric(
+    data["shannon"],
+    errors="coerce"
+)
+
+data = data.dropna(subset=["shannon"])
+
+
+cohorts = [
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+
+# pooled ranks
+data["rank"] = rankdata(
+    data["shannon"],
+    method="average"
+)
+
+N = len(data)
+
+mean_ranks = (
+    data.groupby("cohort")["rank"]
+    .mean()
+)
+
+sample_sizes = (
+    data.groupby("cohort")
+    .size()
+)
+
+
+# tie correction
+tie_counts = (
+    data["shannon"]
+    .value_counts()
+)
+
+tie_term = np.sum(
+    tie_counts.values**3 -
+    tie_counts.values
+)
+
+tie_correction = (
+    tie_term /
+    (12 * (N - 1))
+)
+
+variance_component = (
+    N * (N + 1) / 12
+    - tie_correction
+)
+
+
+# DUNN'S TEST
+
+comparisons = [
+    ("PRJEB75460", "PRJEB75462"),
+    ("PRJEB75460", "PRJEB75463"),
+    ("PRJEB75462", "PRJEB75463")
+]
+
+results = []
+
+for group1, group2 in comparisons:
+
+    n1 = sample_sizes[group1]
+    n2 = sample_sizes[group2]
+
+    r1 = mean_ranks[group1]
+    r2 = mean_ranks[group2]
+
+    standard_error = np.sqrt(
+        variance_component *
+        (1 / n1 + 1 / n2)
+    )
+
+    z = (r1 - r2) / standard_error
+
+    p = 2 * norm.sf(abs(z))
+
+    results.append({
+        "comparison": f"{group1} vs {group2}",
+        "group1": group1,
+        "group2": group2,
+        "n1": n1,
+        "n2": n2,
+        "mean_rank_1": r1,
+        "mean_rank_2": r2,
+        "z": z,
+        "p_uncorrected": p
+    })
+
+
+# HOLM CORRECTION
+
+# Sort p-values from smallest to largest
+sorted_indices = sorted(
+    range(len(results)),
+    key=lambda i: results[i]["p_uncorrected"]
+)
+
+m = len(results)
+
+adjusted = [0.0] * m
+
+for rank, index in enumerate(sorted_indices):
+
+    p = results[index]["p_uncorrected"]
+
+    adjusted[index] = min(
+        1.0,
+        (m - rank) * p
+    )
+
+# Ensure adjusted p-values are sorted
+for i in range(1, len(sorted_indices)):
+
+    previous = sorted_indices[i - 1]
+    current = sorted_indices[i]
+
+    adjusted[current] = max(
+        adjusted[current],
+        adjusted[previous]
+    )
+
+
+# Add adjusted p-values
+for i, result in enumerate(results):
+
+    result["p_holm"] = adjusted[i]
+
+    result["significant"] = (
+        adjusted[i] < 0.05
+    )
+
+
+# Save results
+
+results_df = pd.DataFrame(results)
+
+results_df.to_csv(
+    output_file,
+    index=False
+)
+
+
+print()
+print("DUNN'S POST-HOC TEST — SHANNON")
+
+print()
+print(f"Total samples: {N}")
+print()
+
+for result in results:
+
+    print(result["comparison"])
+
+    print(
+        f"  Mean rank 1: "
+        f"{result['mean_rank_1']:.2f}"
+    )
+
+    print(
+        f"  Mean rank 2: "
+        f"{result['mean_rank_2']:.2f}"
+    )
+
+    print(
+        f"  z = "
+        f"{result['z']:.4f}"
+    )
+
+    print(
+        f"  Uncorrected p = "
+        f"{result['p_uncorrected']:.6e}"
+    )
+
+    print(
+        f"  Holm-adjusted p = "
+        f"{result['p_holm']:.6e}"
+    )
+
+    if result["significant"]:
+        print(
+            "  Significant after Holm correction: YES"
+        )
+    else:
+        print(
+            "  Significant after Holm correction: NO"
+        )
+
+    print()
+
+
+print("Results saved to:")
+print(output_file)
+
