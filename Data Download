@@ -10,7 +10,7 @@ nano Download_ena_fastq.sh
 set -euo pipefail # -e stops script if an error is returned, u = undefined variables will return an error, o = if any command fails this returns an error
 
 #Project names
-PROJECTS=("PRJEB75460" "PRJEB75462" "PRJEB75463") # enter all accession numbers that you want to download
+PROJECTS=("PRJEB75460" "PRJEB75462" "PRJEB75463") # enter all accession numbers to be downloaded
 
 BASE_OUTDIR="$HOME/Projects" # defined the parent directory where all projects will be stored in their own subdirectory 
 
@@ -25,7 +25,7 @@ for PROJECT in "${PROJECTS[@]}"; do    # loop through each accession
   mkdir -p "$OUTDIR" # -p makes the parent directory if needed 
 
 
-  TSV="${OUTDIR}/${PROJECT}_runs.tsv" # defining the file name for the ena runs table .tsv 
+  TSV="${OUTDIR}/${PROJECT}_runs.tsv" # define file name for the ena runs table .tsv 
 
   ENA_URL="https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${PROJECT}&result=read_run&fields=run_accession,fastq_ftp,sample_accession,scientific_name&format=tsv&download=true&limit=0"
 
