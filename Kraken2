@@ -1,0 +1,80 @@
+New db :     /pub54/edwardco/kraken2pluspfp
+Original: Kraken2-nt_core-251015
+
+In PRJEB75460:  Mkdir kraken2_results_first200_newdb
+
+for R1 in FIRST_200/Trimmed_reads/*_1_val_1.fq.gz; do
+    R2=${R1/_1_val_1.fq.gz/_2_val_2.fq.gz}
+    SAMPLE=$(basename "$R1" _1_val_1.fq.gz)
+    kraken2 \
+        --paired \
+        --db /pub54/edwardco/kraken2pluspfp \
+        --threads 4 \
+        --output kraken2_results_first200/${SAMPLE}.kraken \
+        --report kraken2_results_first200/${SAMPLE}.kreport2 \
+        "$R1" "$R2"
+done
+
+
+In PRJEB75460:  Mkdir kraken2_results_773_newdb
+
+for R1 in 773/Trimmed_reads/*_1_val_1.fq.gz; do
+    R2=${R1/_1_val_1.fq.gz/_2_val_2.fq.gz}
+    SAMPLE=$(basename "$R1" _1_val_1.fq.gz)
+    kraken2 \
+        --paired \
+        --db /pub54/edwardco/kraken2pluspfp \
+        --threads 4 \
+        --output kraken2_results_773/${SAMPLE}.kraken \
+        --report kraken2_results_773/${SAMPLE}.kreport2 \
+        "$R1" "$R2"
+done
+
+
+62
+
+62kraken 
+
+In PRJEB75462 subset directory: mkdir kraken2_results_newdb_62
+
+mkdir -p kraken2_results_newdb_62
+
+#!/bin/bash
+
+for R1 in ~/Projects/PRJEB75462/PRJEB75462_subset995/*/*_1_val_1.fq.gz; do
+    R2=${R1/_1_val_1.fq.gz/_2_val_2.fq.gz}
+    SAMPLE=$(basename "$R1" _1_val_1.fq.gz)
+
+    kraken2 \
+        --paired \
+        --db /pub60/kirsten/databases \
+        --threads 4 \
+        --output kraken2_results_newdb_62/${SAMPLE}.kraken \
+        --report kraken2_results_newdb_62/${SAMPLE}.kreport2 \
+        "$R1" "$R2"
+done
+
+
+63
+
+63kraken
+
+In PRJEB75463 subset directory: mkdir kraken2_results_newdb_63 
+
+mkdir -p kraken2_results_newdb_63
+
+#!/bin/bash
+
+for R1 in ~/Projects/PRJEB75463/PRJEB75463_subset998/*/*_1_val_1.fq.gz; do
+    R2=${R1/_1_val_1.fq.gz/_2_val_2.fq.gz}
+    SAMPLE=$(basename "$R1" _1_val_1.fq.gz)
+
+    kraken2 \
+        --paired \
+        --db /pub60/kirsten/databases \
+        --threads 4 \
+        --output kraken2_results_newdb_63/${SAMPLE}.kraken \
+        --report kraken2_results_newdb_63/${SAMPLE}.kreport2 \
+        "$R1" "$R2"
+done
+
