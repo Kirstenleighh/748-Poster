@@ -1,0 +1,325 @@
+# TOP 20 genus stacked bar chart
+
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# Directories
+
+input_dir = "/pub60/kirsten/Projects/Results1/Section_1_Heatmaps"
+
+output_dir = input_dir
+os.makedirs(output_dir, exist_ok=True)
+
+
+# Genus matrices
+
+genus_matrices = {
+    "PRJEB75460": os.path.join(
+        input_dir, "kraken_genus_matrix_60.csv"
+    ),
+    "PRJEB75462": os.path.join(
+        input_dir, "kraken_genus_matrix_62.csv"
+    ),
+    "PRJEB75463": os.path.join(
+        input_dir, "kraken_genus_matrix_63.csv"
+    ),
+}
+
+
+# read matrices
+
+matrices = {}
+
+print()
+print("READING GENUS MATRICES")
+
+for cohort, filepath in genus_matrices.items():
+
+    print()
+    print(f"{cohort}")
+    print(filepath)
+
+    df = pd.read_csv(
+        filepath,
+        index_col=0
+    )
+
+    matrices[cohort] = df
+
+    print(
+        f"Dimensions: "
+        f"{df.shape[0]} genera x {df.shape[1]} samples"
+    )
+
+
+# Combine all samples
+
+combined = pd.concat(
+    matrices.values(),
+    axis=1
+).fillna(0)
+
+print()
+print("FULL COHORT")
+
+print(
+    f"Combined matrix: "
+    f"{combined.shape[0]} genera x {combined.shape[1]} samples"
+)
+
+
+# Find top20 genera across full cohrot
+
+mean_abundance = (
+    combined.mean(axis=1)
+    .sort_values(ascending=False)
+)
+
+top20 = mean_abundance.head(20).index.tolist()
+
+print()
+print("TOP 20 GENERA ACROSS FULL COHORT")
+
+for i, genus in enumerate(top20, start=1):
+    print(
+        f"{i:2d}. {genus} "
+        f"({mean_abundance[genus]:.6f})"
+    )
+
+
+# Save top 20 list
+
+top20_table = pd.DataFrame({
+    "rank": range(1, 21),
+    "genus": top20,
+    "mean_abundance_full_cohort":
+        [mean_abundance[g] for g in top20]
+})
+
+top20_file = os.path.join(
+    output_dir,
+    "top20_genera_full_cohort.tsv"
+)
+
+top20_table.to_csv(
+    top20_file,
+    sep="\t",
+    index=False
+)
+
+print()
+print(f"Saved top-20 list: {top20_file}")
+
+
+# Calculate mean abundance for each bioproject
+
+plot_data = {}
+
+for cohort, matrix in matrices.items():
+
+    # Keep only top 20
+    top = matrix.loc[
+        matrix.index.intersection(top20)
+    ].copy()
+
+    # Add missing top-20 genera as zero
+    top = top.reindex(
+        top20,
+        fill_value=0
+    )
+
+    # Mean abundance across samples
+    mean_values = top.mean(axis=1)
+
+    # Everything else
+    other = (
+        matrix.drop(
+            index=matrix.index.intersection(top20)
+        )
+        .sum(axis=0)
+        .mean()
+    )
+
+    # Create Series
+    values = mean_values.copy()
+    values["Other"] = other
+
+    plot_data[cohort] = values
+
+
+# Create df
+
+plot_df = pd.DataFrame(plot_data).T
+
+# Convert to percentages
+plot_df = plot_df.div(
+    plot_df.sum(axis=1),
+    axis=0
+) * 100
+
+# Make sure order is top 20 + Other
+plot_df = plot_df[
+    top20 + ["Other"]
+]
+
+
+# save plot data
+plot_data_file = os.path.join(
+    output_dir,
+    "top20_genera_stacked_bar_abundance.tsv"
+)
+
+plot_df.to_csv(
+    plot_data_file,
+    sep="\t"
+)
+
+print()
+print(f"Saved abundance table: {plot_data_file}")
+
+
+# 20 different colours
+colors = sns.color_palette(
+    "tab20",
+    20
+)
+
+color_dict = {
+    genus: colors[i]
+    for i, genus in enumerate(top20)
+}
+
+# Grey for other
+color_dict["Other"] = "lightgrey"
+
+
+# Plot
+
+fig, ax = plt.subplots(
+    figsize=(13, 9)
+)
+
+bottom = np.zeros(
+    len(plot_df)
+)
+
+x = np.arange(
+    len(plot_df)
+)
+
+
+# Plot each genus
+for genus in top20 + ["Other"]:
+
+    values = plot_df[genus].values
+
+    ax.bar(
+        x,
+        values,
+        bottom=bottom,
+        color=color_dict[genus],
+        label=genus,
+        width=0.65,
+        edgecolor="white",
+        linewidth=0.3
+    )
+
+    bottom += values
+
+
+# Axes
+
+ax.set_xticks(x)
+
+ax.set_xticklabels(
+    [
+        "PRJEB75460",
+        "PRJEB75462",
+        "PRJEB75463"
+    ],
+    fontsize=12
+)
+
+ax.set_ylabel(
+    "Mean relative abundance (%)",
+    fontsize=13
+)
+
+ax.set_xlabel(
+    "Cohort",
+    fontsize=13
+)
+
+ax.set_ylim(
+    0,
+    100
+)
+
+ax.set_title(
+    "Top 20 most abundant genera across the full cohort",
+    fontsize=16,
+    pad=15
+)
+
+#grid
+ax.yaxis.grid(
+    True,
+    linestyle="--",
+    alpha=0.3
+)
+
+ax.set_axisbelow(True)
+
+# legend
+
+ax.legend(
+    title="Genus",
+    bbox_to_anchor=(1.02, 1),
+    loc="upper left",
+    ncol=3,
+    frameon=False,
+    fontsize=9,
+    title_fontsize=10
+)
+
+
+plt.tight_layout()
+
+
+# save figure
+outfile_png = os.path.join(
+    output_dir,
+    "top20_genera_stacked_bar.png"
+)
+
+outfile_pdf = os.path.join(
+    output_dir,
+    "top20_genera_stacked_bar.pdf"
+)
+
+plt.savefig(
+    outfile_png,
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    outfile_pdf,
+    bbox_inches="tight"
+)
+
+plt.close()
+
+
+print()
+print("STACKED BAR CHART COMPLETE")
+
+print(f"PNG: {outfile_png}")
+print(f"PDF: {outfile_pdf}")
+print(f"Top 20 table: {top20_file}")
+print(f"Abundance table: {plot_data_file}")
