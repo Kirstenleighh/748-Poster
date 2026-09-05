@@ -3,6 +3,7 @@ FASTQC performed on raw reads (paired)
 
 FastQC v0.12.1, MultiQC v1.15
 
+Example bash script:
 
 ```
 nano Run_fastqc_200.sh
@@ -31,11 +32,13 @@ Control O,
 enter, and  
 control X to exit
 
-Make sure script is executable after editing:
+Ensure script is executable after editing:
 ```
 chmod +x Run_fastqc_200.sh
 ```
+
 Then use screen session so it will still run even if logged out:
+
 ```
 screen -S ./fastqc file name here 
 ```
