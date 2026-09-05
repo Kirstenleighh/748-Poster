@@ -1,0 +1,365 @@
+#!/usr/bin/env Rscript
+
+library(pheatmap)
+library(tidyverse)
+
+
+cohorts <- list(
+
+  PRJEB75460 =
+    "/pub60/kirsten/Projects/PRJEB75460",
+
+  PRJEB75462 =
+    "/pub60/kirsten/Projects/PRJEB75462",
+
+  PRJEB75463 =
+    "/pub60/kirsten/Projects/PRJEB75463"
+)
+
+
+# Column to visualise
+# Options include:
+# RPKM
+# SCORE_UNIQ
+# ABUNDANCE
+# READ_COUNT
+
+column_to_plot <- "RPKM"
+
+
+# Log transform
+log_transform <- TRUE
+
+
+# Output directory
+output_dir <-
+  "/pub60/kirsten/Projects/Results1/Section_3_pathogens/ecoli_strains"
+
+dir.create(
+  output_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+
+# process each bioproject
+for (cohort in names(cohorts)) {
+
+  input_dir <- cohorts[[cohort]]
+
+
+  cat("Processing:", cohort, "\n")
+
+
+  # Find all Pangia reports
+  files <- list.files(
+    input_dir,
+    pattern = "\\.report\\.tsv$",
+    full.names = TRUE,
+    recursive = TRUE
+  )
+
+  cat(
+    "Reports found:",
+    length(files),
+    "\n"
+  )
+
+
+  # Read all reports
+
+  tables <- list()
+
+
+  for (file in files) {
+
+    sample_name <-
+      basename(file)
+
+    sample_name <-
+      sub(
+        "\\.report\\.tsv$",
+        "",
+        sample_name
+      )
+
+
+    df <- tryCatch(
+
+      read_tsv(
+        file,
+        col_select = all_of(
+          c(
+            "LEVEL",
+            "NAME",
+            column_to_plot
+          )
+        ),
+        col_types = cols(
+          .default = col_character()
+        ),
+        progress = FALSE,
+        show_col_types = FALSE
+      ),
+
+      error = function(e) {
+
+        cat(
+          "WARNING:",
+          sample_name,
+          "could not be read\n"
+        )
+
+        return(NULL)
+      }
+    )
+
+
+    if (is.null(df)) {
+      next
+    }
+
+
+    # Keep Escherichia coli STRAIN rows
+
+    df <- df |>
+
+      filter(
+        LEVEL == "strain",
+        str_starts(
+          NAME,
+          "Escherichia coli"
+        )
+      ) |>
+
+      transmute(
+
+        sample = sample_name,
+
+        strain = NAME,
+
+        value =
+          as.numeric(
+            .data[[column_to_plot]]
+          )
+      )
+
+
+    tables[[sample_name]] <- df
+  }
+
+
+  # Combine all samples
+
+  long_df <- bind_rows(tables)
+
+
+  # Get all samples
+
+  all_samples <- unique(
+    basename(files)
+  )
+
+  all_samples <- sub(
+    "\\.report\\.tsv$",
+    "",
+    all_samples
+  )
+
+
+  # Check whether any E. coli strains were found
+
+  if (nrow(long_df) == 0) {
+
+    cat(
+      "No E. coli strains found for",
+      cohort,
+      "\n"
+    )
+
+    next
+  }
+
+
+  # Create wide table
+  # Rows    = E. coli strains
+  # Columns = samples
+
+  wide_df <- long_df |>
+
+    pivot_wider(
+
+      names_from = sample,
+
+      values_from = value,
+
+      values_fill = 0
+    )
+
+
+  # Convert to matrix
+  # Rows    = E. coli strains
+  # Columns = samples
+
+  mat <- wide_df |>
+
+    column_to_rownames("strain") |>
+
+    as.matrix()
+
+
+  # Make sure every sample is represented
+
+  missing_samples <-
+    setdiff(
+      all_samples,
+      colnames(mat)
+    )
+
+
+  if (length(missing_samples) > 0) {
+
+    zero_mat <- matrix(
+      0,
+      nrow = nrow(mat),
+      ncol = length(missing_samples)
+    )
+
+    rownames(zero_mat) <-
+      rownames(mat)
+
+    colnames(zero_mat) <-
+      missing_samples
+
+    mat <- cbind(
+      mat,
+      zero_mat
+    )
+  }
+
+
+  # Sort strains and samples
+
+  mat <- mat[
+    sort(rownames(mat)),
+    sort(colnames(mat)),
+    drop = FALSE
+  ]
+
+
+  # Log transformation
+
+  if (log_transform) {
+
+    mat <- log1p(mat)
+  }
+
+
+  # Output filenames
+
+  output_png <- file.path(
+    output_dir,
+    paste0(
+      cohort,
+      "_Ecoli_strain_RPKM_heatmap.png"
+    )
+  )
+
+
+  output_tsv <- file.path(
+    output_dir,
+    paste0(
+      cohort,
+      "_Ecoli_strain_RPKM_matrix.tsv"
+    )
+  )
+
+
+  # Save matrix
+
+  write.table(
+    mat,
+    file = output_tsv,
+    sep = "\t",
+    quote = FALSE,
+    col.names = NA
+  )
+
+
+  # Heatmap
+
+  pheatmap(
+
+    mat,
+
+    color = colorRampPalette(
+      c(
+        "white",
+        "#F7B6C2",
+        "#E75480",
+        "#B3003B"
+      )
+    )(100),
+
+    cluster_rows = TRUE,
+
+    cluster_cols = TRUE,
+
+    # Strain names visible
+    show_rownames = TRUE,
+
+    # Sample names hidden because there are ~1000 samples
+    show_colnames = FALSE,
+
+    fontsize_row = 7,
+
+    fontsize_col = 6,
+
+    border_color = NA,
+
+    main = paste(
+      cohort,
+      "- Escherichia coli strains"
+    ),
+
+    filename = output_png,
+
+    # Landscape orientation
+    width = 20,
+
+    height = 10
+  )
+
+
+  # Report
+
+  cat(
+    "E. coli strains detected:",
+    nrow(mat),
+    "\n"
+  )
+
+  cat(
+    "Samples represented:",
+    ncol(mat),
+    "\n"
+  )
+
+  cat(
+    "Saved:",
+    output_png,
+    "\n"
+  )
+
+  cat(
+    "Saved matrix:",
+    output_tsv,
+    "\n"
+  )
+}
+
+
+cat(
+  "E. coli strain heatmaps complete.\n"
+)
+
