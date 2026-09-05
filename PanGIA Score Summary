@@ -1,0 +1,502 @@
+#!/usr/bin/env python3
+
+import os
+import glob
+import pandas as pd
+
+
+# PANGIA SCORE SUMMARY FOR 13 TARGET PATHOGENS
+
+# directories
+COHORT_DIRS = {
+    "PRJEB75460": "/pub60/kirsten/Projects/PRJEB75460",
+    "PRJEB75462": "/pub60/kirsten/Projects/PRJEB75462",
+    "PRJEB75463": "/pub60/kirsten/Projects/PRJEB75463",
+}
+
+
+# EXPECTED COHORT SAMPLE NUMBERS
+
+COHORT_SIZES = {
+    "PRJEB75460": 973,
+    "PRJEB75462": 995,
+    "PRJEB75463": 998
+}
+
+
+# OUTPUT DIRECTORY
+
+OUTPUT_DIR = (
+    "/pub60/kirsten/Projects/Results1/"
+    "Section_3_pathogens/pangia"
+)
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+# 13 TARGET PATHOGENS
+
+PATHOGENS = {
+    "Clostridioides difficile":
+        r"^Clostridioides difficile$",
+
+    "Clostridium perfringens":
+        r"^Clostridium perfringens$",
+
+    "Escherichia coli":
+        r"^Escherichia coli",
+
+    "Campylobacter jejuni":
+        r"^Campylobacter jejuni$",
+
+    "Listeria monocytogenes":
+        r"^Listeria monocytogenes$",
+
+    "Salmonella enterica":
+        r"Salmonella enterica.*Enteritidis|Salmonella.*Enteritidis",
+
+    "Shigella sonnei":
+        r"^Shigella sonnei$",
+
+    "Yersinia enterocolitica":
+        r"^Yersinia enterocolitica$",
+
+    "Vibrio cholerae":
+        r"^Vibrio cholerae$",
+
+    "Giardia duodenalis":
+        r"^Giardia duodenalis$",
+
+    "Cryptosporidium parvum":
+        r"^Cryptosporidium parvum$",
+
+    "Cyclospora cayetanensis":
+        r"^Cyclospora cayetanensis$",
+
+    "Human adenovirus":
+        r"^Human adenovirus",
+}
+
+
+# STORE ALL DETECTIONS
+
+all_results = []
+
+
+# PROCESS EACH COHORT
+
+for cohort, cohort_dir in COHORT_DIRS.items():
+
+    report_files = sorted(
+        glob.glob(
+            os.path.join(
+                cohort_dir,
+                "**",
+                "*.report.tsv"
+            ),
+            recursive=True
+        )
+    )
+
+    print(
+        f"{cohort}: found "
+        f"{len(report_files)} Pangia reports"
+    )
+
+
+    # CHECK SAMPLE NUMBER
+
+    expected = COHORT_SIZES[cohort]
+
+    if len(report_files) != expected:
+
+        print(
+            f"WARNING: expected {expected} reports "
+            f"but found {len(report_files)}"
+        )
+
+
+    # PROCESS EACH REPORT
+
+    for report_file in report_files:
+
+        sample = os.path.basename(
+            report_file
+        ).replace(
+            ".report.tsv",
+            ""
+        )
+
+
+        # READ REPORT
+
+        try:
+
+            df = pd.read_csv(
+                report_file,
+                sep="\t",
+                dtype=str
+            )
+
+        except Exception as e:
+
+            print(
+                f"WARNING: could not read "
+                f"{report_file}: {e}"
+            )
+
+            continue
+
+
+        # REQUIRED COLUMNS
+
+        required_columns = {
+            "LEVEL",
+            "NAME",
+            "TAXID",
+            "READ_COUNT",
+            "ABUNDANCE",
+            "SCORE_UNIQ"
+        }
+
+        missing = (
+            required_columns
+            - set(df.columns)
+        )
+
+        if missing:
+
+            print(
+                f"WARNING: {sample} missing "
+                f"columns: {missing}"
+            )
+
+            continue
+
+
+        # SPECIES LEVEL ONLY
+
+        df = df[
+            df["LEVEL"]
+            .fillna("")
+            .str.lower()
+            .eq("species")
+        ].copy()
+
+
+        # SEARCH FOR THE 13 PATHOGENS
+
+        for pathogen, pattern in PATHOGENS.items():
+
+            matches = df[
+                df["NAME"]
+                .fillna("")
+                .str.match(
+                    pattern,
+                    case=False,
+                    na=False
+                )
+            ].copy()
+
+
+            # No detection
+
+            if len(matches) == 0:
+
+                continue
+
+
+            # Convert read count to numeric
+
+            matches["READ_COUNT_NUM"] = (
+                pd.to_numeric(
+                    matches["READ_COUNT"],
+                    errors="coerce"
+                )
+            )
+
+
+            # If multiple species rows occur,
+            # keep the row with the highest read count
+
+            matches = matches.sort_values(
+                "READ_COUNT_NUM",
+                ascending=False
+            )
+
+
+            row = matches.iloc[0]
+
+
+            # Extract values
+
+            score = pd.to_numeric(
+                row["SCORE_UNIQ"],
+                errors="coerce"
+            )
+
+            read_count = pd.to_numeric(
+                row["READ_COUNT"],
+                errors="coerce"
+            )
+
+            abundance = pd.to_numeric(
+                row["ABUNDANCE"],
+                errors="coerce"
+            )
+
+
+            # Skip invalid score
+
+            if pd.isna(score):
+
+                continue
+
+
+            # Store result
+
+            all_results.append({
+
+                "Cohort":
+                    cohort,
+
+                "Sample":
+                    sample,
+
+                "Pathogen":
+                    pathogen,
+
+                "TaxID":
+                    row["TAXID"],
+
+                "Pangia_read_count":
+                    read_count,
+
+                "Pangia_abundance":
+                    abundance,
+
+                "Pangia_score":
+                    score
+            })
+
+
+# CREATE LONG DETECTION TABLE
+
+detections = pd.DataFrame(
+    all_results
+)
+
+
+if detections.empty:
+
+    raise SystemExit(
+        "ERROR: No Pangia pathogen "
+        "detections were found."
+    )
+
+
+# SAVE LONG TABLE
+
+long_file = os.path.join(
+    OUTPUT_DIR,
+    "pangia_13_pathogens_scores_long.tsv"
+)
+
+detections.to_csv(
+    long_file,
+    sep="\t",
+    index=False
+)
+
+print()
+print(
+    f"Saved detection table: "
+    f"{long_file}"
+)
+
+
+# CREATE SUMMARY TABLES
+
+for cohort in COHORT_DIRS:
+
+    print()
+    print(
+        f"Creating summary for {cohort}"
+    )
+
+
+    # Get detections for this cohort
+
+    cohort_data = detections[
+        detections["Cohort"] == cohort
+    ]
+
+
+    cohort_n = COHORT_SIZES[
+        cohort
+    ]
+
+
+    summary_rows = []
+
+
+    # Process all 13 pathogens
+
+    for pathogen in PATHOGENS:
+
+        pathogen_data = cohort_data[
+            cohort_data["Pathogen"] == pathogen
+        ]
+
+
+        scores = pathogen_data[
+            "Pangia_score"
+        ].dropna()
+
+
+        n_detected = len(scores)
+
+
+        # Pathogen detected
+
+        if n_detected > 0:
+
+            median_score = scores.median()
+
+            q1 = scores.quantile(
+                0.25
+            )
+
+            q3 = scores.quantile(
+                0.75
+            )
+
+            maximum_score = scores.max()
+
+            iqr = (
+                f"{q1:.3f}–{q3:.3f}"
+            )
+
+
+        # No detections
+
+        else:
+
+            median_score = ""
+
+            iqr = ""
+
+            maximum_score = ""
+
+
+        # Percentage detected
+
+        percent_detected = (
+            n_detected
+            / cohort_n
+            * 100
+        )
+
+
+        # Store summary
+
+        summary_rows.append({
+
+            "Pathogen":
+                pathogen,
+
+            "n_detected":
+                n_detected,
+
+            "percent_detected":
+                round(
+                    percent_detected,
+                    1
+                ),
+
+            "Median_Pangia_score":
+                (
+                    round(
+                        median_score,
+                        3
+                    )
+                    if median_score != ""
+                    else ""
+                ),
+
+            "IQR":
+                iqr,
+
+            "Maximum_score":
+                (
+                    round(
+                        maximum_score,
+                        3
+                    )
+                    if maximum_score != ""
+                    else ""
+                )
+        })
+
+
+    # CREATE DATAFRAME
+
+    cohort_summary = pd.DataFrame(
+        summary_rows
+    )
+
+
+    # SAVE COHORT TABLE
+
+    output_file = os.path.join(
+        OUTPUT_DIR,
+        f"{cohort}_pangia_scores_table.tsv"
+    )
+
+
+    cohort_summary.to_csv(
+        output_file,
+        sep="\t",
+        index=False
+    )
+
+
+    print(
+        f"Saved thesis table: "
+        f"{output_file}"
+    )
+
+
+# BASIC CHECKS
+
+print()
+print(
+    "Detection counts by cohort:"
+)
+
+print(
+    detections
+    .groupby("Cohort")
+    .size()
+)
+
+
+print()
+print(
+    "Detection counts by pathogen:"
+)
+
+print(
+    detections
+    .groupby("Pathogen")
+    .size()
+    .sort_values(
+        ascending=False
+    )
+)
+
+
+print()
+print(
+    "Pangia score extraction complete."
+)
