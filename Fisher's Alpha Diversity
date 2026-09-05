@@ -1,0 +1,58 @@
+# FISHER'S ALPHA
+
+
+#!/bin/bash
+
+OUTPUT="/pub60/kirsten/Projects/Results1/Section_2_diversity/alpha_diversity_fisher_all.csv"
+
+ALPHA_SCRIPT="/pub60/kirsten/Projects/PRJEB75460/alphadiversity.py"
+
+echo "sample,cohort,fisher" > "$OUTPUT"
+
+echo "Processing PRJEB75460 - first 200..."
+
+for FILE in /pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_200_results/*.bracken
+do
+    SAMPLE=$(basename "$FILE" .bracken)
+    VALUE=$(python "$ALPHA_SCRIPT" -f "$FILE" -a F | grep -oP '(?<=: )[\d.eE+-]+')
+    echo "${SAMPLE},PRJEB75460,${VALUE}" >> "$OUTPUT"
+done
+
+echo "Processing PRJEB75460 - 773..."
+
+for FILE in /pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_773_results/*.bracken
+do
+    SAMPLE=$(basename "$FILE" .bracken)
+    VALUE=$(python "$ALPHA_SCRIPT" -f "$FILE" -a F | grep -oP '(?<=: )[\d.eE+-]+')
+    echo "${SAMPLE},PRJEB75460,${VALUE}" >> "$OUTPUT"
+done
+
+echo "Processing PRJEB75462..."
+
+for FILE in /pub60/kirsten/Projects/PRJEB75462/Bracken_results_newdb_62/*.bracken
+do
+    SAMPLE=$(basename "$FILE" .bracken)
+    VALUE=$(python "$ALPHA_SCRIPT" -f "$FILE" -a F | grep -oP '(?<=: )[\d.eE+-]+')
+    echo "${SAMPLE},PRJEB75462,${VALUE}" >> "$OUTPUT"
+done
+
+echo "Processing PRJEB75463..."
+
+for FILE in /pub60/kirsten/Projects/PRJEB75463/Bracken_results_newdb_63/*.bracken
+do
+    SAMPLE=$(basename "$FILE" .bracken)
+    VALUE=$(python "$ALPHA_SCRIPT" -f "$FILE" -a F | grep -oP '(?<=: )[\d.eE+-]+')
+    echo "${SAMPLE},PRJEB75463,${VALUE}" >> "$OUTPUT"
+done
+
+echo "FISHER RESULTS"
+
+for COHORT in PRJEB75460 PRJEB75462 PRJEB75463
+do
+    COUNT=$(grep -c "$COHORT" "$OUTPUT")
+    echo "$COHORT: $COUNT samples"
+done
+
+echo ""
+echo "Output:"
+echo "$OUTPUT"
