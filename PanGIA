@@ -27,6 +27,88 @@ Ctrl X
 Chmod +x run_pangia.sh 
 
 
+62:
+
+Ssh ada20/21
+
+
+To run samples sequentially in a screen:
+
+
+conda activate /pub54/edwardco/miniconda3/envs/pangia
+
+Nano script name 
+
+#!/bin/bash
+
+for r1 in ~/Projects/PRJEB75462/PRJEB75462_subset995/*/*_1_val_1.fq.gz # for every r1 file in the subset
+do
+    r2=${r1/_1_val_1.fq.gz/_2_val_2.fq.gz} # find its r2
+    name=$(basename "${r1%_1_val_1.fq.gz}") # remove suffix 
+    outdir=$(dirname "$r1") # identify dir where r1 is (SAMEA), store it in outdir so the output is written here alongisde the input
+
+    (
+        cd "$outdir" || exit # move into the sample dir 
+
+        python3 /pub54/edwardco/pangia/pangia/pangia.py \ # run pangia with python 3, specify path where the pangia script is on server
+            -i "$r1" "$r2" \ # paired reads as the input
+            -db /pub7/panGIA_db/*fa \ # ref database with fasta files 
+            -p "$name" \ # sample id as output prefix 
+            -st illumina \ # type of sequencing
+            -t 96 # high number of threads required for pangia analysis 
+    )
+Done
+
+Chmod +x script name 
+
+Screen -S screenname 
+
+./ script name 
+
+
+
+63:
+
+Ssh ada20/21
+
+
+To run samples sequentially in a screen:
+
+
+conda activate /pub54/edwardco/miniconda3/envs/pangia
+
+Nano script name 
+
+
+#!/bin/bash
+
+for r1 in ~/Projects/PRJEB75463/PRJEB75463_subset998/*/*_1_val_1.fq.gz
+do
+    r2=${r1/_1_val_1.fq.gz/_2_val_2.fq.gz}
+    name=$(basename "${r1%_1_val_1.fq.gz}")
+    outdir=$(dirname "$r1")
+
+    (
+        cd "$outdir" || exit
+
+        python3 /pub54/edwardco/pangia/pangia/pangia.py \
+            -i "$r1" "$r2" \
+            -db /pub7/panGIA_db/*fa \
+            -p "$name" \
+            -st illumina \
+            -t 96
+    )
+done
+
+
+Chmod +x script name 
+
+Screen -S screenname 
+
+./ script name
+
+
+
 screen -S pangia
 
 
