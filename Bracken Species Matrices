@@ -1,0 +1,134 @@
+# PRJEB75460
+
+import pandas as pd
+import glob
+import os
+
+input_dirs = [
+    "Bracken_newdb_200_results",
+    "Bracken_newdb_773_results"
+]
+
+output_file = "bracken_species_matrix_60.csv"
+
+files = []
+
+for input_dir in input_dirs:
+    files.extend(glob.glob(os.path.join(input_dir, "*.bracken")))
+
+print(f"Found {len(files)} Bracken files")
+
+if len(files) != 973:
+    print("WARNING: Expected 973 files!")
+
+tables = []
+
+for file in files:
+    sample = os.path.basename(file).replace(".bracken", "")
+
+    df = pd.read_csv(file, sep="\t")
+
+    df = df[["name", "new_est_reads"]]
+
+    df = df.rename(columns={
+        "new_est_reads": sample
+    })
+
+    tables.append(df)
+
+matrix = tables[0]
+
+for df in tables[1:]:
+    matrix = matrix.merge(df, on="name", how="outer")
+
+matrix = matrix.fillna(0)
+
+matrix.to_csv(output_file, index=False)
+
+print(f"Created: {output_file}")
+print(f"Samples: {len(files)}")
+print(f"Species: {len(matrix)}")
+
+
+# PRJEB75462
+
+import pandas as pd
+import glob
+import os
+
+input_dir = "Bracken_results_newdb_62"
+output_file = "bracken_species_matrix_62.csv"
+
+files = glob.glob(os.path.join(input_dir, "*.bracken"))
+
+if not files:
+    print("ERROR: No .bracken files found.")
+    exit()
+
+tables = []
+
+for file in files:
+    sample = os.path.basename(file).replace(".bracken", "")
+
+    df = pd.read_csv(file, sep="\t")
+
+    df = df[["name", "new_est_reads"]]
+
+    df = df.rename(columns={
+        "new_est_reads": sample
+    })
+
+    tables.append(df)
+
+matrix = tables[0]
+
+for df in tables[1:]:
+    matrix = matrix.merge(df, on="name", how="outer")
+
+matrix = matrix.fillna(0)
+
+matrix.to_csv(output_file, index=False)
+
+print(f"Created: {output_file}")
+print(f"Samples: {len(files)}")
+print(f"Species: {len(matrix)}")
+
+
+# PRJEB75463
+
+import pandas as pd
+import glob
+import os
+
+input_dir = "Bracken_results_newdb_63"
+output_file = "bracken_species_matrix_63.csv"
+
+files = glob.glob(os.path.join(input_dir, "*.bracken"))
+
+tables = []
+
+for file in files:
+    sample = os.path.basename(file).replace(".bracken", "")
+
+    df = pd.read_csv(file, sep="\t")
+
+    df = df[["name", "new_est_reads"]]
+
+    df = df.rename(columns={
+        "new_est_reads": sample
+    })
+
+    tables.append(df)
+
+matrix = tables[0]
+
+for df in tables[1:]:
+    matrix = matrix.merge(df, on="name", how="outer")
+
+matrix = matrix.fillna(0)
+
+matrix.to_csv(output_file, index=False)
+
+print(f"Created {output_file}")
+print(f"Samples: {len(files)}")
+print(f"Species: {len(matrix)}")
