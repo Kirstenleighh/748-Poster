@@ -1,0 +1,246 @@
+# Genus Matrices 
+
+import os
+import glob
+import pandas as pd
+
+
+# Output directory
+
+output_dir = "/pub60/kirsten/Projects/Results1/Section_1_Heatmaps"
+os.makedirs(output_dir, exist_ok=True)
+
+
+# Kraken2 kreport locations for full cohort
+
+kreport_dirs = {
+    "60": [
+        "/pub60/kirsten/Projects/PRJEB75460/kraken2_results_773_newdb",
+        "/pub60/kirsten/Projects/PRJEB75460/kraken2_results_first200_newdb",
+    ],
+
+    "62": [
+        "/pub60/kirsten/Projects/PRJEB75462/kraken2_results_newdb_62",
+    ],
+
+    "63": [
+        "/pub60/kirsten/Projects/PRJEB75463/kraken2_results_newdb_63",
+    ],
+}
+
+
+#expected sample numbers
+
+expected_samples = {
+    "60": 973,
+    "62": 995,
+    "63": 998,
+}
+
+
+# create genus matrix from kreport2 files
+
+def make_genus_matrix(directories):
+
+    sample_tables = []
+
+    for directory in directories:
+
+        files = glob.glob(
+            os.path.join(directory, "*.kreport2")
+        )
+
+        print()
+        print(f"Reading {len(files)} kreport2 files from:")
+        print(directory)
+
+        for f in files:
+
+            sample = os.path.basename(f).replace(
+                ".kreport2",
+                ""
+            )
+
+            rows = []
+
+            with open(f, "r") as infile:
+
+                for line in infile:
+
+                    fields = line.rstrip("\n").split("\t")
+
+                    if len(fields) < 6:
+                        continue
+
+                    # Kraken2 report columns:
+                    #
+                    # 0 = percentage
+                    # 1 = clade reads
+                    # 2 = direct reads
+                    # 3 = taxonomic rank
+                    # 4 = taxonomy ID
+                    # 5 = taxon name
+
+                    rank = fields[3]
+
+                    # Keep genus-level entries only
+                    if rank == "G":
+
+                        genus = fields[5].strip()
+
+                        try:
+                            clade_reads = int(fields[1])
+                        except ValueError:
+                            continue
+
+                        rows.append(
+                            [genus, clade_reads]
+                        )
+
+            # Check that this sample contained genus entries
+
+            if not rows:
+
+                print(
+                    f"WARNING: no genus entries found in {f}"
+                )
+
+                continue
+
+            # Convert to dataframe
+
+            df = pd.DataFrame(
+                rows,
+                columns=[
+                    "name",
+                    "reads"
+                ]
+            )
+
+            # Combine duplicate genus names
+
+            df = (
+                df.groupby("name")["reads"]
+                .sum()
+            )
+
+            # Convert to relative abundance
+
+            total_reads = df.sum()
+
+            if total_reads > 0:
+
+                df = df / total_reads
+
+            # Sample name becomes column name
+            df.name = sample
+
+            sample_tables.append(df)
+
+    # Combine all samples
+
+    if not sample_tables:
+
+        raise RuntimeError(
+            "No valid kreport2 files containing genus "
+            "entries were found."
+        )
+
+    matrix = pd.concat(
+        sample_tables,
+        axis=1
+    ).fillna(0)
+
+    return matrix
+
+
+# process each bioproject
+
+for cohort, directories in kreport_dirs.items():
+
+    print()
+    print(f"PROCESSING PRJEB754{cohort}")
+
+    genus_matrix = make_genus_matrix(
+        directories
+    )
+
+    # matrix info
+
+    n_genera = genus_matrix.shape[0]
+    n_samples = genus_matrix.shape[1]
+
+    print()
+    print(
+        f"Genus matrix dimensions: "
+        f"{n_genera} genera x {n_samples} samples"
+    )
+
+    # check sample number
+
+    expected = expected_samples[cohort]
+
+    if n_samples == expected:
+
+        print(
+            f"Sample count correct: {n_samples}"
+        )
+
+    else:
+
+        print(
+            f"WARNING: expected {expected} samples "
+            f"but found {n_samples}"
+        )
+
+    # Check for duplicate sample names
+
+    duplicate_samples = genus_matrix.columns[
+        genus_matrix.columns.duplicated()
+    ]
+
+    if len(duplicate_samples) > 0:
+
+        print()
+        print(
+            "WARNING: duplicate sample names detected:"
+        )
+
+        print(
+            list(duplicate_samples)
+        )
+
+    else:
+
+        print(
+            "No duplicate sample names."
+        )
+
+    # Save full genus matrix
+
+    outfile = os.path.join(
+        output_dir,
+        f"kraken_genus_matrix_{cohort}.csv"
+    )
+
+    genus_matrix.to_csv(
+        outfile
+    )
+
+    print()
+    print(
+        f"Saved genus matrix:"
+    )
+
+    print(
+        outfile
+    )
+
+
+
+print()
+print("ALL THREE GENUS MATRICES COMPLETE")
+print()
+print(
+    f"Output directory: {output_dir}"
+)
