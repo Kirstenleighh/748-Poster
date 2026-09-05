@@ -5,53 +5,50 @@ Bash script for downloading Zoe data using PREDICT accession numbers from https:
 ```
 nano Download_ena_fastq.sh
 ```
-
-```
 #!/bin/bash
 
-set -euo pipefail
-#Run this directly on the login node on the CBF server
+set -euo pipefail # -e stops script if an error is returned, u = undefined variables will return an error, o = if any command fails this returns an error
 
-#Project name
-PROJECTS=("PRJEB75464") # enter all accession numbers that you want to download
+#Project names
+PROJECTS=("PRJEB75460" "PRJEB75462" "PRJEB75463") # enter all accession numbers that you want to download
 
-BASE_OUTDIR="$HOME/Projects"
+BASE_OUTDIR="$HOME/Projects" # defined the parent directory where all projects will be stored in their own subdirectory 
 
-for PROJECT in "${PROJECTS[@]}"; do
+for PROJECT in "${PROJECTS[@]}"; do    # loop through each accession
 
   echo "=================================="
   echo "Processing project: $PROJECT"
   echo "=================================="
 
 
-  OUTDIR="${BASE_OUTDIR}/${PROJECT}"
-  mkdir -p "$OUTDIR"
+  OUTDIR="${BASE_OUTDIR}/${PROJECT}" # define and make the directory for each project accession
+  mkdir -p "$OUTDIR" # -p makes the parent directory if needed 
 
 
-  TSV="${OUTDIR}/${PROJECT}_runs.tsv"
+  TSV="${OUTDIR}/${PROJECT}_runs.tsv" # defining the file name for the ena runs table .tsv 
 
   ENA_URL="https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${PROJECT}&result=read_run&fields=run_accession,fastq_ftp,sample_accession,scientific_name&format=tsv&download=true&limit=0"
 
 
   echo "Downloading the TSV for ${PROJECT}..."
-  wget -qO "${TSV}" "${ENA_URL}"
+  wget -qO "${TSV}" "${ENA_URL}" # download the runs table using wget and the url
 
-  if ! head -n 1 "${TSV}" | grep -q "run_accession"; then
-    echo "ERROR: Something up with the TSV"
-    echo "First few lines:"
+  if ! head -n 1 "${TSV}" | grep -q "run_accession"; then   # if the first line of the tsv contains expected run_accession column
+    echo "ERROR: TSV" # if column is not found show an error 
+    echo "First few lines:" # check first few lines for errors
     head -n 5 "${TSV}"
     echo
-    echo "URL used:"
+    echo "URL used:" # print the url used 
     echo "${ENA_URL}"
-    exit 1
+    exit 1 # stop script 
   fi
 
   echo "TSV saved to: ${TSV}"
-  echo "Rows of data: $(wc -l < "${TSV}")"
+  echo "Rows of data: $(wc -l < "${TSV}")" # count lines in tsv (includes header)
 
   echo "Downloading FASTQs listed in fastq_ftp..."
 
-awk -F '\t' -v OUTDIR="${OUTDIR}" '
+awk -F '\t' -v OUTDIR="${OUTDIR}" ' # read tsv in line by line
 NR==1 { next }  #skip header
 {
     #Columns (per fields order):
@@ -61,43 +58,42 @@ NR==1 { next }  #skip header
     #$4 scientific_name
 
     sp = $4
-    gsub(/ /, "_", sp)
+    gsub(/ /, "_", sp) # inserts an underscore in spaces in scientific names 
 
-    sample = $3
+    sample = $3 # creates a separate directory for each sample 
 
-    n = split($2, urls, ";")
-    for (i = 1; i <= n; i++) {
-        url = urls[i]
-        if (url == "" || url ~ /^[[:space:]]*$/) continue
+    n = split($2, urls, ";") # split urls with semi colon
+    for (i = 1; i <= n; i++) { # loop through each fastq url associated with the sample
+        url = urls[i] # store current url
+        if (url == "" || url ~ /^[[:space:]]*$/) continue # ignore blank entries 
 
         #ENA gives ftp:// 
-        #Change it to https://
-        gsub(/^ftp:\/\//, "", url)
-        gsub(/^https:\/\//, "", url)
-        url = "https://" url
+        #Changes url to https:// for downloading using wget
+        gsub(/^ftp:\/\//, "", url) # if present removes ftp:// prefix 
+        gsub(/^https:\/\//, "", url) # if already present removes https:// prefix to avoid there being two
+        url = "https://" url # add https://
 
-        dir = OUTDIR "/" sp "/" sample
-        system("mkdir -p \"" dir "\"")
+        dir = OUTDIR "/" sp "/" sample # directory structure ( ~/Projects/PRJEB75462/human_gut_metagenome/SAMEA123456/
+        system("mkdir -p \" dir "\"") # make dir for each sample 
 
-        #-c continue; -nv makes it less verbose which is nicer; -P output dir
-        cmd = "wget -c -nv -nc -P \"" dir "\" \"" url "\""
-        system(cmd)
+        #-c continue; -nv less verbose; -nc if file already exists don’t download again; -P output dir
+        cmd = "wget -c -nv -nc -P \"" dir "\" \"" url "\"" # construct wget command for downloading
+        system(cmd) # execute wget command
     }
 }
-' "${TSV}"
+' "${TSV}" # run awk on tsv
 
-echo "Done. Output in: ${OUTDIR}"
-done
-```
-Control O, 
-enter, and  
+echo "Done. Output in: ${OUTDIR}" # print that the current project has finished and location of data 
+Done # end of loop
+
+
+Control O, enter, and
 control X to exit
 
 Make sure script is executable after editing:
-```
 chmod +x download.script.file.sh
-```
+
+
 Then use screen session so it will still run even if logged out:
-```
+
 screen -S ./downloading file name here 
-```
