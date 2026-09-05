@@ -1,0 +1,223 @@
+#!/usr/bin/env Rscript
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+
+
+#input file/output dir
+input_file <- "/pub60/kirsten/Projects/Results1/Section_3_pathogens/heatmap/13_pathogens_log10_relative_abundance.tsv"
+
+output_dir <- "/pub60/kirsten/Projects/Results1/Section_3_pathogens/heatmap"
+
+dir.create(output_dir, showWarnings = FALSE)
+
+
+# read data in
+dat <- read_tsv(
+  input_file,
+  show_col_types = FALSE
+)
+
+
+# convert to wide format
+dat_long <- dat %>%
+  rename(Pathogen = 1) %>%
+  pivot_longer(
+    cols = -Pathogen,
+    names_to = "Sample",
+    values_to = "Log10_Relative_Abundance"
+  )
+
+
+dat_long <- dat_long %>%
+  mutate(
+    Cohort = case_when(
+      grepl("^PRJEB75460_", Sample) ~ "PRJEB75460",
+      grepl("^PRJEB75462_", Sample) ~ "PRJEB75462",
+      grepl("^PRJEB75463_", Sample) ~ "PRJEB75463",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# PATHOGEN ORDER
+
+pathogen_order <- c(
+  "Clostridioides difficile",
+  "Clostridium perfringens",
+  "Escherichia coli",
+  "Campylobacter jejuni",
+  "Listeria monocytogenes",
+  "Salmonella enterica",
+  "Shigella sonnei",
+  "Yersinia enterocolitica",
+  "Vibrio cholerae",
+  "Giardia duodenalis",
+  "Cryptosporidium parvum",
+  "Cyclospora cayetanensis",
+  "Human adenovirus F"
+)
+
+dat_long <- dat_long %>%
+  mutate(
+    Pathogen = factor(
+      Pathogen,
+      levels = rev(pathogen_order)
+    )
+  )
+
+
+# MAKE ONE HEATMAP PER COHORT
+
+cohorts <- c(
+  "PRJEB75460",
+  "PRJEB75462",
+  "PRJEB75463"
+)
+
+
+for (cohort_name in cohorts) {
+
+  cohort_data <- dat_long %>%
+    filter(Cohort == cohort_name)
+
+
+  # Order samples
+
+  cohort_data <- cohort_data %>%
+    mutate(
+      Sample = factor(
+        Sample,
+        levels = unique(Sample)
+      )
+    )
+
+
+  # Plot
+
+  p <- ggplot(
+    cohort_data,
+    aes(
+      x = Sample,
+      y = Pathogen,
+      fill = Log10_Relative_Abundance
+    )
+  ) +
+
+    geom_tile(
+      width = 1,
+      height = 1
+    ) +
+
+    scale_fill_gradientn(
+      colours = c(
+        "white",
+        "#FEE0E0",
+        "#FCAEAE",
+        "#FB6A6A",
+        "#DE2D26",
+        "#A50F15"
+      ),
+      values = scales::rescale(c(0, 0.5, 1, 2, 3, 4)),
+      breaks = c(0, 1, 2, 3, 4),
+      labels = c(
+        "0 RPM",
+        "9 RPM",
+        "99 RPM",
+        "999 RPM",
+        "9,999 RPM"
+      ),
+      limits = c(0, 4),
+      name = "Relative abundance"
+    )
+
+    labs(
+      title = cohort_name,
+      x = "Sample",
+      y = "Pathogen"
+    ) +
+
+    theme_minimal(
+      base_size = 12
+    ) +
+
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+
+      axis.text.y = element_text(
+        size = 9
+      ),
+
+      panel.grid = element_blank(),
+
+      plot.title = element_text(
+        face = "bold",
+        size = 14,
+        hjust = 0.5
+      ),
+
+      legend.title = element_text(
+        size = 10
+      ),
+
+      legend.text = element_text(
+        size = 9
+      )
+    )
+
+
+  # Save PNG
+
+  png_file <- file.path(
+    output_dir,
+    paste0(
+      cohort_name,
+      "_13_pathogens_heatmap.png"
+    )
+  )
+
+  ggsave(
+    png_file,
+    p,
+    width = 14,
+    height = 7,
+    dpi = 300
+  )
+
+
+  # Save PDF
+
+  pdf_file <- file.path(
+    output_dir,
+    paste0(
+      cohort_name,
+      "_13_pathogens_heatmap.pdf"
+    )
+  )
+
+  ggsave(
+    pdf_file,
+    p,
+    width = 14,
+    height = 7
+  )
+
+
+  cat(
+    "Saved:",
+    png_file,
+    "\n"
+  )
+
+  cat(
+    "Saved:",
+    pdf_file,
+    "\n"
+  )
+}
+
+
+cat("\nAll three heatmaps completed.\n")
