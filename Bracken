@@ -10,8 +10,8 @@ for KREPORT in kraken2_results_first200_newdb/*.kreport2; do # loop through ever
         -o Bracken_newdb_200_results/${SAMPLE}.bracken \ # output file for estimates 
         -w Bracken_newdb_200_results/${SAMPLE}.breport \ # output file for bracken adjusted kreport
         -r 150 \ # r = read length used for the abundacne estimates, 150 bp reads 
-        -l S \ # s = species 
-        -t 10 # specify the minimum number of reads required for a taxon to be included in abundance estimation
+        -l S \ # s = estimate abundance at species level 
+        -t 10 # specify the minimum number of reads required for a taxon to be included in abundance estimation (inclusion threshold)
 Done
 
 
