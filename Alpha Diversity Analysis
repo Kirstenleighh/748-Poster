@@ -1,49 +1,411 @@
-# Shannon diversity 
-# Violin/boxplot 
+# Kruskal Wallis 
 
 #!/usr/bin/env python
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import pandas as pd # pandas for reading in the data
+from scipy.stats import kruskal # import kruskal wallis from scipy 
 
-
-# directory and file
+# set the dir with the alpha div results in 
 output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
 
-shannon_file = (
-    f"{output_dir}/alpha_diversity_shannon_all.csv"
-)
+# shannon and fisher input files 
+shannon_file = f"{output_dir}/alpha_diversity_shannon_all.csv"
+fisher_file = f"{output_dir}/alpha_diversity_fisher_all.csv"
 
+#read data in
+shannon = pd.read_csv(shannon_file)
+fisher = pd.read_csv(fisher_file)
 
-# read in the data
-data = pd.read_csv(shannon_file)
-
-data["shannon"] = pd.to_numeric(
-    data["shannon"],
+shannon["shannon"] = pd.to_numeric( # convert diversity values to numeric and convert invalid/missing value to NaNs
+    shannon["shannon"],
     errors="coerce"
 )
 
-data = data.dropna(
-    subset=["shannon"]
+fisher["fisher"] = pd.to_numeric(
+    fisher["fisher"],
+    errors="coerce"
 )
 
+#remove any rows with missing values 
+shannon = shannon.dropna(subset=["shannon"])
+fisher = fisher.dropna(subset=["fisher"])
 
-cohort_order = [
+
+cohorts = [
     "PRJEB75460",
     "PRJEB75462",
     "PRJEB75463"
 ]
 
 
-colours = {
+# SHANNON KRUSKAL-WALLIS
+
+shannon_groups = [ # extract shannon values for each bioproject (keep seperate)
+    shannon.loc[
+        shannon["cohort"] == cohort,
+        "shannon"
+    ].values
+    for cohort in cohorts
+]
+
+# run kruskal wallis test 
+H_shannon, p_shannon = kruskal(*shannon_groups)
+
+
+# FISHER KRUSKAL-WALLIS
+
+fisher_groups = [ # extract the fishers alpha values for each bioproject
+    fisher.loc[
+        fisher["cohort"] == cohort,
+        "fisher"
+    ].values
+    for cohort in cohorts
+]
+# run KW test
+H_fisher, p_fisher = kruskal(*fisher_groups)
+
+
+# print results, including H statistic, degrees of freedom and p value for both shannon and fishers 
+print()
+print("KRUSKAL-WALLIS TESTS")
+
+print()
+print("Shannon diversity")
+print("------------------")
+print(f"H statistic = {H_shannon:.4f}")
+print("df = 2")
+print(f"p-value     = {p_shannon:.6e}")
+
+print()
+print("Fisher's alpha")
+print("----------------")
+print(f"H statistic = {H_fisher:.4f}")
+print("df = 2")
+print(f"p-value     = {p_fisher:.6e}")
+
+
+# Sample counts/double checking observations
+print()
+print("SAMPLE COUNTS")
+
+for cohort in cohorts:
+
+    n_shannon = (
+        shannon["cohort"] == cohort
+    ).sum()
+
+    n_fisher = (
+        fisher["cohort"] == cohort
+    ).sum()
+
+    print(
+        f"{cohort}: "
+        f"Shannon n={n_shannon}, "
+        f"Fisher n={n_fisher}"
+    )
+
+
+# results interpretation
+if p_shannon < 0.05:
+    print(
+        "Shannon: significant difference among cohorts "
+        "(Kruskal-Wallis p < 0.05)."
+    )
+else:
+    print(
+        "Shannon: no significant difference among cohorts "
+        "(Kruskal-Wallis p >= 0.05)."
+    )
+
+if p_fisher < 0.05:
+    print(
+        "Fisher: significant difference among cohorts "
+        "(Kruskal-Wallis p < 0.05)."
+    )
+else:
+    print(
+        "Fisher: no significant difference among cohorts "
+        "(Kruskal-Wallis p >= 0.05)."
+    )
+
+
+
+# Post hoc Dunn's for sig Shannon result 
+
+#!/usr/bin/env python
+
+import pandas as pd
+import numpy as np
+from scipy.stats import rankdata, norm # for converting shannon values into ranks , to be used for dunn's 
+
+# input and output files
+input_file = (
+    "/pub60/kirsten/Projects/Results1/Section_2_diversity/"
+    "alpha_diversity_shannon_all.csv" # csv for shannon div of full cohort
+)
+
+output_file = (
+    "/pub60/kirsten/Projects/Results1/Section_2_diversity/"
+    "dunn_shannon_results.csv"
+)
+
+
+# read data in
+data = pd.read_csv(input_file)
+
+data["shannon"] = pd.to_numeric(
+    data["shannon"],
+    errors="coerce"
+)
+
+data = data.dropna(subset=["shannon"])
+
+
+cohorts = [
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+
+# pooled ranks (all shannon values together for pairwise comparisons, differecnes in mean ranks
+data["rank"] = rankdata(
+    data["shannon"],
+    method="average"
+)
+
+N = len(data)
+
+mean_ranks = ( # average rank for each bioproject
+    data.groupby("cohort")["rank"]
+    .mean()
+)
+
+sample_sizes = (
+    data.groupby("cohort")
+    .size()
+)
+
+
+# tie correction
+tie_counts = ( # count how many times each shannon value occurs
+    data["shannon"]
+    .value_counts()
+)
+
+tie_term = np.sum( # tie for variance correction
+    tie_counts.values**3 -
+    tie_counts.values
+)
+
+tie_correction = (
+    tie_term /
+    (12 * (N - 1))
+)
+
+variance_component = ( # var component for calculating the standard error for each pairwise comparison
+    N * (N + 1) / 12
+    - tie_correction
+)
+
+
+# DUNN'S TEST
+
+comparisons = [ # define the pairwise comparisons
+    ("PRJEB75460", "PRJEB75462"),
+    ("PRJEB75460", "PRJEB75463"),
+    ("PRJEB75462", "PRJEB75463")
+]
+
+results = [] # create list to store the results in
+
+#dunns test for each pair of bioprojects 
+for group1, group2 in comparisons:
+
+#sample sizes of the two bioprojects in each comparison
+    n1 = sample_sizes[group1]
+    n2 = sample_sizes[group2]
+
+# mean ranks of the two
+    r1 = mean_ranks[group1]
+    r2 = mean_ranks[group2]
+
+# standard error of the differences between the mean ranks of the two bioprojects
+    standard_error = np.sqrt(
+        variance_component *
+        (1 / n1 + 1 / n2)
+    )
+
+    z = (r1 - r2) / standard_error # calculate z stat from the difference between the mean ranks / standard error
+
+    p = 2 * norm.sf(abs(z)) # p values 
+
+    results.append({ # store results
+        "comparison": f"{group1} vs {group2}",
+        "group1": group1,
+        "group2": group2,
+        "n1": n1,
+        "n2": n2,
+        "mean_rank_1": r1,
+        "mean_rank_2": r2,
+        "z": z,
+        "p_uncorrected": p
+    })
+
+
+# HOLM CORRECTION
+
+# Sort p-values from smallest to largest
+sorted_indices = sorted(
+    range(len(results)),
+    key=lambda i: results[i]["p_uncorrected"]
+)
+
+m = len(results) # number of pairwise comparisons
+
+adjusted = [0.0] * m # list to store the adj p values
+
+# holm correction
+for rank, index in enumerate(sorted_indices):
+
+    p = results[index]["p_uncorrected"] # get the original p 
+
+    adjusted[index] = min( # multiply p by the number of tests remaining, ensuring adj p cannot be above 1
+        1.0,
+        (m - rank) * p
+    )
+
+# Ensure adjusted p-values are sorted
+for i in range(1, len(sorted_indices)):
+
+    previous = sorted_indices[i - 1]
+    current = sorted_indices[i]
+
+    adjusted[current] = max(
+        adjusted[current],
+        adjusted[previous]
+    )
+
+
+# Add adjusted p-values to each comparison
+for i, result in enumerate(results):
+
+    result["p_holm"] = adjusted[i]
+
+    result["significant"] = ( # set sig threshold 
+        adjusted[i] < 0.05
+    )
+
+
+# Save results
+
+results_df = pd.DataFrame(results) # use pandas dataframe for results 
+
+results_df.to_csv(
+    output_file,
+    index=False
+)
+
+
+print() # print results 
+print("DUNN'S POST-HOC TEST — SHANNON")
+
+print()
+print(f"Total samples: {N}")
+print()
+
+for result in results:
+
+    print(result["comparison"])
+
+    print(
+        f"  Mean rank 1: "
+        f"{result['mean_rank_1']:.2f}"
+    )
+
+    print(
+        f"  Mean rank 2: "
+        f"{result['mean_rank_2']:.2f}"
+    )
+
+    print(
+        f"  z = "
+        f"{result['z']:.4f}"
+    )
+
+    print(
+        f"  Uncorrected p = "
+        f"{result['p_uncorrected']:.6e}"
+    )
+
+    print(
+        f"  Holm-adjusted p = "
+        f"{result['p_holm']:.6e}"
+    )
+
+    if result["significant"]:
+        print(
+            "  Significant after Holm correction: YES"
+        )
+    else:
+        print(
+            "  Significant after Holm correction: NO"
+        )
+
+    print()
+
+
+print("Results saved to:")
+print(output_file)
+
+
+
+
+# Shannon diversity Violin/boxplot 
+
+#!/usr/bin/env python
+
+import pandas as pd # pandas for reading in
+import matplotlib.pyplot as plt # matplotlib for figures
+import seaborn as sns # stats visualisation using seaborn
+
+
+# directory and input file
+output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
+
+shannon_file = (
+    f"{output_dir}/alpha_diversity_shannon_all.csv" # shannon diversity .csv file for values
+)
+
+
+# read in the data
+data = pd.read_csv(shannon_file)
+
+data["shannon"] = pd.to_numeric( # convert to numeric
+    data["shannon"],
+    errors="coerce" # any missing/non numeric values replaced with NaN
+)
+
+data = data.dropna( # remove rows in instance where shannon div value is missing
+    subset=["shannon"]
+)
+
+
+cohort_order = [ # order of bioprojects for plotting
+    "PRJEB75460",
+    "PRJEB75462",
+    "PRJEB75463"
+]
+
+
+colours = { # colouring each cohort 
     "PRJEB75460": "#2166AC",
     "PRJEB75462": "#4DAF4A",
     "PRJEB75463": "#B2182B"
 }
 
 
-# significance bracket
+# significance brackets between bioprojects
 def add_significance_bar(
     ax,
     x1,
@@ -53,14 +415,14 @@ def add_significance_bar(
     text
 ):
 
-    ax.plot(
+    ax.plot( # drawing the brackets
         [x1, x1, x2, x2],
         [y, y + h, y + h, y],
         lw=1.5,
         c="black"
     )
 
-    ax.text(
+    ax.text( # adding the significance level (** and ***) above the brackets
         (x1 + x2) / 2,
         y + h,
         text,
@@ -72,14 +434,14 @@ def add_significance_bar(
 
 
 # plot
-sns.set_style("whitegrid")
+sns.set_style("whitegrid") # white background 
 
-fig, ax = plt.subplots(
+fig, ax = plt.subplots( # sizing of the figure and axes (10 x 8)
     figsize=(10, 8)
 )
 
 
-# violin plot
+# violin plot for shannon diversity value distribution within each bioproject
 sns.violinplot(
     data=data,
     x="cohort",
@@ -102,23 +464,23 @@ sns.boxplot(
     order=cohort_order,
     width=0.28,
     showfliers=False,
-    boxprops={
+    boxprops={ # formatting the boxes
         "facecolor": "white",
         "edgecolor": "black",
         "linewidth": 1.5,
         "zorder": 3
     },
-    whiskerprops={
+    whiskerprops={ # formatting the whiskers 
         "color": "black",
         "linewidth": 1.5,
         "zorder": 3
     },
-    capprops={
+    capprops={ # fromatting the whisker ends 
         "color": "black",
         "linewidth": 1.5,
         "zorder": 3
     },
-    medianprops={
+    medianprops={ # median line formatting
         "color": "black",
         "linewidth": 1.5,
         "zorder": 4
@@ -142,7 +504,7 @@ sns.stripplot(
 )
 
 
-# significance min and max
+# significance min, max and range of the shannon values
 y_min = data["shannon"].min()
 y_max = data["shannon"].max()
 y_range = y_max - y_min
@@ -150,6 +512,7 @@ y_range = y_max - y_min
 
 # PRJEB75460 vs PRJEB75462
 # Holm-adjusted p = 0.00328
+# ** for p < 0.01
 
 add_significance_bar(
     ax=ax,
@@ -163,6 +526,7 @@ add_significance_bar(
 
 # PRJEB75460 vs PRJEB75463
 # Holm-adjusted p = 3.25e-06
+# *** for p < 0.001
 
 add_significance_bar(
     ax=ax,
@@ -181,12 +545,12 @@ ax.set_title(
     fontweight="bold"
 )
 
-ax.set_xlabel(
+ax.set_xlabel( # x axis labelling
     "Cohort",
     fontsize=13
 )
 
-ax.set_ylabel(
+ax.set_ylabel( # y axis labelling
     "Shannon diversity",
     fontsize=13
 )
@@ -200,39 +564,38 @@ ax.set_ylim(
 
 
 # save
-plt.tight_layout()
+plt.tight_layout() # plot spacing 
 
-png_file = (
+png_file = ( # set the png figure file name
     f"{output_dir}/"
     "shannon_diversity_violin_boxplot.png"
 )
 
-pdf_file = (
+pdf_file = ( # pdf if needed 
     f"{output_dir}/"
     "shannon_diversity_violin_boxplot.pdf"
 )
 
-plt.savefig(
+plt.savefig( # set figure resolution
     png_file,
     dpi=300,
     bbox_inches="tight"
 )
 
-plt.savefig(
+plt.savefig( # save pdf
     pdf_file,
     bbox_inches="tight"
 )
 
 plt.close()
 
-
-
+# print when finished 
 print()
 print("SHANNON VIOLIN + BOXPLOT COMPLETE")
 
-print(f"Samples: {len(data)}")
+print(f"Samples: {len(data)}") # print number fo samples included to ensure they have all been included 
 
-for cohort in cohort_order:
+for cohort in cohort_order: # and a break down of samples from each bioproject 
 
     n = (
         data["cohort"] == cohort
@@ -246,7 +609,7 @@ print()
 print(f"PNG: {png_file}")
 print(f"PDF: {pdf_file}")
 
-print()
+print()  # print sig results from post hoc dunn's 
 print("Significant comparisons:")
 print("PRJEB75460 vs PRJEB75462: **")
 print("PRJEB75460 vs PRJEB75463: ***")
@@ -267,11 +630,11 @@ import seaborn as sns
 output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
 
 fisher_file = (
-    f"{output_dir}/alpha_diversity_fisher_all.csv"
+    f"{output_dir}/alpha_diversity_fisher_all.csv" 
 )
 
 
-# read data
+# read in fisher data
 data = pd.read_csv(fisher_file)
 
 data["fisher"] = pd.to_numeric(
@@ -430,362 +793,10 @@ print()
 print(f"PNG: {png_file}")
 print(f"PDF: {pdf_file}")
 
-print()
-print("Kruskal-Wallis:")
+print() # print kruskal wallis results on the plot 
+print("Kruskal-Wallis:") 
 print("H = 5.5579")
 print("p = 0.0621")
 print("Not significant at alpha = 0.05")
 
-
-# Kruskal Wallis 
-
-#!/usr/bin/env python
-
-import pandas as pd
-from scipy.stats import kruskal
-
-
-output_dir = "/pub60/kirsten/Projects/Results1/Section_2_diversity"
-
-shannon_file = f"{output_dir}/alpha_diversity_shannon_all.csv"
-fisher_file = f"{output_dir}/alpha_diversity_fisher_all.csv"
-
-#read data in
-shannon = pd.read_csv(shannon_file)
-fisher = pd.read_csv(fisher_file)
-
-shannon["shannon"] = pd.to_numeric(
-    shannon["shannon"],
-    errors="coerce"
-)
-
-fisher["fisher"] = pd.to_numeric(
-    fisher["fisher"],
-    errors="coerce"
-)
-
-shannon = shannon.dropna(subset=["shannon"])
-fisher = fisher.dropna(subset=["fisher"])
-
-
-cohorts = [
-    "PRJEB75460",
-    "PRJEB75462",
-    "PRJEB75463"
-]
-
-
-# SHANNON KRUSKAL-WALLIS
-
-shannon_groups = [
-    shannon.loc[
-        shannon["cohort"] == cohort,
-        "shannon"
-    ].values
-    for cohort in cohorts
-]
-
-H_shannon, p_shannon = kruskal(*shannon_groups)
-
-
-# FISHER KRUSKAL-WALLIS
-
-fisher_groups = [
-    fisher.loc[
-        fisher["cohort"] == cohort,
-        "fisher"
-    ].values
-    for cohort in cohorts
-]
-
-H_fisher, p_fisher = kruskal(*fisher_groups)
-
-
-# results
-print()
-print("KRUSKAL-WALLIS TESTS")
-
-print()
-print("Shannon diversity")
-print("------------------")
-print(f"H statistic = {H_shannon:.4f}")
-print("df = 2")
-print(f"p-value     = {p_shannon:.6e}")
-
-print()
-print("Fisher's alpha")
-print("----------------")
-print(f"H statistic = {H_fisher:.4f}")
-print("df = 2")
-print(f"p-value     = {p_fisher:.6e}")
-
-
-# Sample counts
-print()
-print("SAMPLE COUNTS")
-
-for cohort in cohorts:
-
-    n_shannon = (
-        shannon["cohort"] == cohort
-    ).sum()
-
-    n_fisher = (
-        fisher["cohort"] == cohort
-    ).sum()
-
-    print(
-        f"{cohort}: "
-        f"Shannon n={n_shannon}, "
-        f"Fisher n={n_fisher}"
-    )
-
-
-# results interpretation
-if p_shannon < 0.05:
-    print(
-        "Shannon: significant difference among cohorts "
-        "(Kruskal-Wallis p < 0.05)."
-    )
-else:
-    print(
-        "Shannon: no significant difference among cohorts "
-        "(Kruskal-Wallis p >= 0.05)."
-    )
-
-if p_fisher < 0.05:
-    print(
-        "Fisher: significant difference among cohorts "
-        "(Kruskal-Wallis p < 0.05)."
-    )
-else:
-    print(
-        "Fisher: no significant difference among cohorts "
-        "(Kruskal-Wallis p >= 0.05)."
-    )
-
-
-
-# Post hoc Dunn's for sig Shannon result 
-
-#!/usr/bin/env python
-
-import pandas as pd
-import numpy as np
-from scipy.stats import rankdata, norm
-
-# input and output files
-input_file = (
-    "/pub60/kirsten/Projects/Results1/Section_2_diversity/"
-    "alpha_diversity_shannon_all.csv" # csv for shannon div of full cohort
-)
-
-output_file = (
-    "/pub60/kirsten/Projects/Results1/Section_2_diversity/"
-    "dunn_shannon_results.csv"
-)
-
-
-# read data in
-data = pd.read_csv(input_file)
-
-data["shannon"] = pd.to_numeric(
-    data["shannon"],
-    errors="coerce"
-)
-
-data = data.dropna(subset=["shannon"])
-
-
-cohorts = [
-    "PRJEB75460",
-    "PRJEB75462",
-    "PRJEB75463"
-]
-
-
-# pooled ranks
-data["rank"] = rankdata(
-    data["shannon"],
-    method="average"
-)
-
-N = len(data)
-
-mean_ranks = (
-    data.groupby("cohort")["rank"]
-    .mean()
-)
-
-sample_sizes = (
-    data.groupby("cohort")
-    .size()
-)
-
-
-# tie correction
-tie_counts = (
-    data["shannon"]
-    .value_counts()
-)
-
-tie_term = np.sum(
-    tie_counts.values**3 -
-    tie_counts.values
-)
-
-tie_correction = (
-    tie_term /
-    (12 * (N - 1))
-)
-
-variance_component = (
-    N * (N + 1) / 12
-    - tie_correction
-)
-
-
-# DUNN'S TEST
-
-comparisons = [
-    ("PRJEB75460", "PRJEB75462"),
-    ("PRJEB75460", "PRJEB75463"),
-    ("PRJEB75462", "PRJEB75463")
-]
-
-results = []
-
-for group1, group2 in comparisons:
-
-    n1 = sample_sizes[group1]
-    n2 = sample_sizes[group2]
-
-    r1 = mean_ranks[group1]
-    r2 = mean_ranks[group2]
-
-    standard_error = np.sqrt(
-        variance_component *
-        (1 / n1 + 1 / n2)
-    )
-
-    z = (r1 - r2) / standard_error
-
-    p = 2 * norm.sf(abs(z))
-
-    results.append({
-        "comparison": f"{group1} vs {group2}",
-        "group1": group1,
-        "group2": group2,
-        "n1": n1,
-        "n2": n2,
-        "mean_rank_1": r1,
-        "mean_rank_2": r2,
-        "z": z,
-        "p_uncorrected": p
-    })
-
-
-# HOLM CORRECTION
-
-# Sort p-values from smallest to largest
-sorted_indices = sorted(
-    range(len(results)),
-    key=lambda i: results[i]["p_uncorrected"]
-)
-
-m = len(results)
-
-adjusted = [0.0] * m
-
-for rank, index in enumerate(sorted_indices):
-
-    p = results[index]["p_uncorrected"]
-
-    adjusted[index] = min(
-        1.0,
-        (m - rank) * p
-    )
-
-# Ensure adjusted p-values are sorted
-for i in range(1, len(sorted_indices)):
-
-    previous = sorted_indices[i - 1]
-    current = sorted_indices[i]
-
-    adjusted[current] = max(
-        adjusted[current],
-        adjusted[previous]
-    )
-
-
-# Add adjusted p-values
-for i, result in enumerate(results):
-
-    result["p_holm"] = adjusted[i]
-
-    result["significant"] = (
-        adjusted[i] < 0.05
-    )
-
-
-# Save results
-
-results_df = pd.DataFrame(results)
-
-results_df.to_csv(
-    output_file,
-    index=False
-)
-
-
-print()
-print("DUNN'S POST-HOC TEST — SHANNON")
-
-print()
-print(f"Total samples: {N}")
-print()
-
-for result in results:
-
-    print(result["comparison"])
-
-    print(
-        f"  Mean rank 1: "
-        f"{result['mean_rank_1']:.2f}"
-    )
-
-    print(
-        f"  Mean rank 2: "
-        f"{result['mean_rank_2']:.2f}"
-    )
-
-    print(
-        f"  z = "
-        f"{result['z']:.4f}"
-    )
-
-    print(
-        f"  Uncorrected p = "
-        f"{result['p_uncorrected']:.6e}"
-    )
-
-    print(
-        f"  Holm-adjusted p = "
-        f"{result['p_holm']:.6e}"
-    )
-
-    if result["significant"]:
-        print(
-            "  Significant after Holm correction: YES"
-        )
-    else:
-        print(
-            "  Significant after Holm correction: NO"
-        )
-
-    print()
-
-
-print("Results saved to:")
-print(output_file)
 
