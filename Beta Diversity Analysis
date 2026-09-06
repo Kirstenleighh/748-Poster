@@ -2,6 +2,7 @@
 
 #!/usr/bin/env python
 
+# import libraries
 import os
 import numpy as np
 import pandas as pd
@@ -47,9 +48,9 @@ genus_files = {
 print()
 print("READING GENUS MATRICES")
 
-matrices = []
+matrices = [] # store each bioproject df
 
-for cohort, filename in genus_files.items():
+for cohort, filename in genus_files.items(): # loop through each bioproject and read in abundance matrix .csv
 
     print()
     print(f"Reading {cohort}")
@@ -57,7 +58,7 @@ for cohort, filename in genus_files.items():
 
     df = pd.read_csv(
         filename,
-        index_col=0
+        index_col=0 # first column for genus names 
     )
 
     print(
@@ -67,18 +68,17 @@ for cohort, filename in genus_files.items():
 
     # Make sure all abundance values are numeric
     df = df.apply(
-        pd.to_numeric,
+        pd.to_numeric, # abundance values converted to numeric
         errors="coerce"
-    ).fillna(0)
+    ).fillna(0) # replace NaNs with 0
 
-    # Add cohort to sample names
-    # This prevents duplicate sample IDs between datasets
+    # Add Bioproject number to sample names to prevent duplicate sample IDs between datasets
     df.columns = [
         f"{cohort}_{sample}"
         for sample in df.columns
     ]
 
-    matrices.append(
+    matrices.append( # store bioproject name and df together
         (cohort, df)
     )
 
@@ -88,9 +88,9 @@ print()
 print("COMBINING MATRICES")
 
 combined = pd.concat(
-    [x[1] for x in matrices],
-    axis=1,
-    join="outer"
+    [x[1] for x in matrices], # combine by row
+    axis=1, # samples side by side
+    join="outer" 
 ).fillna(0)
 
 print(
@@ -231,7 +231,7 @@ print(f"Saved PCoA coordinates:")
 print(pcoa_file)
 
 
-# PCoA VARIANCE
+# PCoA VARIANCE % for pcoa1 and pcoa2
 
 pc1 = (
     pcoa_results.proportion_explained["PC1"] * 100
@@ -257,7 +257,7 @@ plt.figure(
     figsize=(10, 8)
 )
 
-sns.scatterplot(
+sns.scatterplot( # each sample plotted with its PCoA coordinates
     data=pcoa_coords,
     x="PC1",
     y="PC2",
@@ -273,7 +273,7 @@ sns.scatterplot(
     edgecolor=None
 )
 
-plt.xlabel(
+plt.xlabel( # axis labels % variance explained
     f"PCoA1 ({pc1:.2f}% variance)",
     fontsize=13
 )
@@ -336,7 +336,7 @@ print()
 print("PERMANOVA")
 
 
-# Create grouping variable
+# Create grouping variable so each sample is grouped with the bioproject it is from
 groups = pd.Series(
     [
         sample.split("_", 1)[0]
@@ -449,14 +449,14 @@ print(distance_file)
 
 distance_df = pd.read_csv(
     distance_file,
-    sep="\t",
-    index_col=0
+    sep="\t", # tab seperated distance df 
+    index_col=0 # first column with sample ids used as the index
 )
 
-distance_df.index = distance_df.index.astype(str)
+distance_df.index = distance_df.index.astype(str) # samples ids as strings
 distance_df.columns = distance_df.columns.astype(str)
 
-distance_matrix = DistanceMatrix(
+distance_matrix = DistanceMatrix( # df converted into distance matrix
     distance_df.values,
     ids=distance_df.index.tolist()
 )
@@ -467,10 +467,12 @@ print(
 )
 
 
-# select cohort
+# select bioproject
+
+# get sample IDs
 samples = distance_matrix.ids
 
-cohorts = pd.Series(
+cohorts = pd.Series( # extract Bioproject from each sample name
     [
         sample.split("_", 1)[0]
         for sample in samples
@@ -493,17 +495,17 @@ def run_pairwise(cohort1, cohort2):
     print()
     print(f"{cohort1} vs {cohort2}")
 
-    selected_samples = cohorts[
+    selected_samples = cohorts[ # select samples from the bioprojects being compared
         cohorts.isin(
             [cohort1, cohort2]
         )
     ].index.tolist()
 
-    sub_distance = distance_matrix.filter(
+    sub_distance = distance_matrix.filter( # extract submatrix of the two bioprojects being compared from the full one
         selected_samples
     )
 
-    grouping = cohorts.loc[
+    grouping = cohorts.loc[ # extract bioproject labels for the selected samples
         selected_samples
     ]
 
@@ -516,7 +518,7 @@ def run_pairwise(cohort1, cohort2):
     # Extract values
 
     pseudo_f = float(
-        result["test statistic"]
+        result["test statistic"] # ratio of between-bioproject to within-bioproject variation
     )
 
     p_value = float(
@@ -524,7 +526,7 @@ def run_pairwise(cohort1, cohort2):
     )
 
     n = int(
-        result["sample size"]
+        result["sample size"] # samples in the comparison
     )
 
     # Calculate R-squared
@@ -560,7 +562,7 @@ def run_pairwise(cohort1, cohort2):
         f"Uncorrected p-value: {p_value:.6f}"
     )
 
-    return {
+    return { # results as dictionary for now
         "comparison": f"{cohort1} vs {cohort2}",
         "cohort_1": cohort1,
         "cohort_2": cohort2,
@@ -571,7 +573,7 @@ def run_pairwise(cohort1, cohort2):
     }
 
 
-# RUN ALL THREE COMPARISONS
+# RUN ALL THREE PW COMPARISONS
 
 results = []
 
@@ -590,7 +592,7 @@ for cohort1, cohort2 in itertools.combinations(
     )
 
 
-results_df = pd.DataFrame(
+results_df = pd.DataFrame( # convert list of dictionaries into a df
     results
 )
 
@@ -604,7 +606,7 @@ print("HOLM CORRECTION")
 # Sort by uncorrected p-value
 results_df = results_df.sort_values(
     "p_uncorrected"
-).reset_index(
+).reset_index( # holm correction to be applied starting from smallest p
     drop=True
 )
 
@@ -612,7 +614,7 @@ m = len(results_df)
 
 adjusted = []
 
-for i, p in enumerate(
+for i, p in enumerate( # calculate holm adj p
     results_df["p_uncorrected"]
 ):
 
@@ -626,7 +628,7 @@ for i, p in enumerate(
     )
 
 
-# Ensure Holm adjusted values are sorted
+# Ensure Holm adjusted values are sorted 
 for i in range(1, len(adjusted)):
 
     adjusted[i] = max(
@@ -635,13 +637,13 @@ for i in range(1, len(adjusted)):
     )
 
 
-results_df["p_holm"] = adjusted
+results_df["p_holm"] = adjusted # add adj p values to results df
 
 
 # SIGNIFICANCE
 
 results_df["significant"] = (
-    results_df["p_holm"] < 0.05
+    results_df["p_holm"] < 0.05 # set sig threshold
 )
 
 
@@ -697,7 +699,7 @@ results_df.to_csv(
     index=False
 )
 
-#save .txt
+#save as .txt
 text_file = os.path.join(
     output_dir,
     "pairwise_permanova_bray_curtis_genus.txt"
