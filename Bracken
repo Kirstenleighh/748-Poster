@@ -117,6 +117,7 @@ done
 
 
 # Bracken Abundance Matrices
+# combine the bracken output files into a species x sample abundance matrix 
 
 60_bracken_matrix.py
 
@@ -124,50 +125,50 @@ import pandas as pd
 import glob
 import os
 
-input_dirs = [
+input_dirs = [ # where the .bracken files are
     "Bracken_newdb_200_results",
     "Bracken_newdb_773_results"
 ]
 
 output_file = "bracken_species_matrix_60.csv"
 
-files = []
+files = [] # list for the paths to the .bracken files from input dirs
 
-for input_dir in input_dirs:
+for input_dir in input_dirs: # loop through each input dir to find the .bracken files and add to the list
     files.extend(glob.glob(os.path.join(input_dir, "*.bracken")))
 
-print(f"Found {len(files)} Bracken files")
+print(f"Found {len(files)} Bracken files") # print how many .bracken files were found
 
 if len(files) != 973:
-    print("WARNING: Expected 973 files!")
+    print("WARNING: Expected 973 files") # warning if number of files is different to what is expected 
 
-tables = []
+tables = [] # one df stored per sample when each .bracken file is read
 
-for file in files:
-    sample = os.path.basename(file).replace(".bracken", "")
+for file in files: # for each .bracken
+    sample = os.path.basename(file).replace(".bracken", "") # extract sample name, remove dir path and .bracken extension
 
-    df = pd.read_csv(file, sep="\t")
+    df = pd.read_csv(file, sep="\t") # read .bracken as tab separated file
 
-    df = df[["name", "new_est_reads"]]
+    df = df[["name", "new_est_reads"]] # keep columns for abundance matrix: name and new_est_reads
 
     df = df.rename(columns={
-        "new_est_reads": sample
+        "new_est_reads": sample # rename abundance column to sample
     })
 
-    tables.append(df)
+    tables.append(df) # store each sample df in the list 
 
-matrix = tables[0]
+matrix = tables[0] # merge all samples into the matrix, adding one sample at a time
 
 for df in tables[1:]:
-    matrix = matrix.merge(df, on="name", how="outer")
+    matrix = matrix.merge(df, on="name", how="outer") # merge using species names, retain every taxon found in any sample
 
-matrix = matrix.fillna(0)
+matrix = matrix.fillna(0) # replace any missing values with 0 for 0 abundance 
 
-matrix.to_csv(output_file, index=False)
+matrix.to_csv(output_file, index=False) # save final matrix and write to .csv
 
-print(f"Created: {output_file}")
-print(f"Samples: {len(files)}")
-print(f"Species: {len(matrix)}")
+print(f"Created: {output_file}") # location of output file
+print(f"Samples: {len(files)}") # number of .bracken files/samples processed
+print(f"Species: {len(matrix)}") # number of rows (unique taxa) seen across the samples
 
 
 
