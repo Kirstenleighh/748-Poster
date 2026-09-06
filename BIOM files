@@ -3,7 +3,7 @@
 #!/bin/bash
 
 kraken-biom \
-    /pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_200_results/*.breport \
+    /pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_200_results/*.breport \ # convert breport files into biom .json file
     /pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_773_results/*.breport \
     --fmt json \
     -o /pub60/kirsten/Projects/Results1/Section_3_pathogens/biom/PRJEB75460_bracken.biom.json
