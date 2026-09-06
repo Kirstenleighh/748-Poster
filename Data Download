@@ -1,10 +1,11 @@
 # DOWNLOADING ZOE DATA – fastq files
    
-Bash script for downloading Zoe data using PREDICT accession numbers from https://www.nature.com/articles/s41586-025-09854-7#Sec10  
+# Bash script for downloading Zoe data using PREDICT accession numbers from https://www.nature.com/articles/s41586-025-09854-7#Sec10  
 
-```
+
 nano Download_ena_fastq.sh
-```
+
+
 #!/bin/bash
 
 set -euo pipefail # -e stops script if an error is returned, u = undefined variables will return an error, o = if any command fails this returns an error
@@ -16,10 +17,7 @@ BASE_OUTDIR="$HOME/Projects" # defined the parent directory where all projects w
 
 for PROJECT in "${PROJECTS[@]}"; do    # loop through each accession
 
-  echo "=================================="
   echo "Processing project: $PROJECT"
-  echo "=================================="
-
 
   OUTDIR="${BASE_OUTDIR}/${PROJECT}" # define and make the directory for each project accession
   mkdir -p "$OUTDIR" # -p makes the parent directory if needed 
