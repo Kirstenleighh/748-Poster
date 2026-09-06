@@ -1,22 +1,35 @@
-New db :     /pub54/edwardco/kraken2pluspfp
-Original: Kraken2-nt_core-251015
+# Kraken2 was used to classify the trimmed paired-end metagenomic reads against the PlusPFP Kraken2 database. 
+# Analysis performed separately for PRJEB75460, PRJEB75462 # and PRJEB75463
+# New db: /pub54/edwardco/kraken2pluspfp
+# Original: Kraken2-nt_core-251015
 
-In PRJEB75460:  Mkdir kraken2_results_first200_newdb
+# PRJEB75460
 
-for R1 in FIRST_200/Trimmed_reads/*_1_val_1.fq.gz; do
-    R2=${R1/_1_val_1.fq.gz/_2_val_2.fq.gz}
-    SAMPLE=$(basename "$R1" _1_val_1.fq.gz)
+Mkdir kraken2_results_first200_newdb
+
+run_kraken2_first200_newdb.sh
+
+#!/bin/bash
+
+for R1 in FIRST_200/Trimmed_reads/*_1_val_1.fq.gz; do # # loop through all R1 trimmed fastq files
+    R2=${R1/_1_val_1.fq.gz/_2_val_2.fq.gz} # collect corresponding R2 read (paired read files)
+    SAMPLE=$(basename "$R1" _1_val_1.fq.gz) # get sample id from the R1 file name by removing suffix
     kraken2 \
-        --paired \
-        --db /pub54/edwardco/kraken2pluspfp \
-        --threads 4 \
-        --output kraken2_results_first200/${SAMPLE}.kraken \
-        --report kraken2_results_first200/${SAMPLE}.kreport2 \
-        "$R1" "$R2"
+        --paired \ # use the paired reads
+        --db /pub54/edwardco/kraken2pluspfp \ # specify database to use and path to it 
+        --threads 4 \ # number of threads 
+        --output kraken2_results_first200_newdb/${SAMPLE}.kraken \ # save read level results as .kraken
+        --report kraken2_results_first200_newdb/${SAMPLE}.kreport2 \ # save taxonomic classification results as .kreport2
+        "$R1" "$R2" # r1 and r2 as input
 done
 
 
-In PRJEB75460:  Mkdir kraken2_results_773_newdb
+
+Mkdir kraken2_results_773_newdb
+
+run_kraken2_773_newdb.sh
+
+#!/bin/bash
 
 for R1 in 773/Trimmed_reads/*_1_val_1.fq.gz; do
     R2=${R1/_1_val_1.fq.gz/_2_val_2.fq.gz}
@@ -25,19 +38,18 @@ for R1 in 773/Trimmed_reads/*_1_val_1.fq.gz; do
         --paired \
         --db /pub54/edwardco/kraken2pluspfp \
         --threads 4 \
-        --output kraken2_results_773/${SAMPLE}.kraken \
-        --report kraken2_results_773/${SAMPLE}.kreport2 \
+        --output kraken2_results_773_newdb/${SAMPLE}.kraken \
+        --report kraken2_results_773_newdb/${SAMPLE}.kreport2 \
         "$R1" "$R2"
 done
 
 
-62
+
+# PRJEB75462
 
 62kraken 
 
-In PRJEB75462 subset directory: mkdir kraken2_results_newdb_62
-
-mkdir -p kraken2_results_newdb_62
+mkdir kraken2_results_newdb_62
 
 #!/bin/bash
 
@@ -55,13 +67,11 @@ for R1 in ~/Projects/PRJEB75462/PRJEB75462_subset995/*/*_1_val_1.fq.gz; do
 done
 
 
-63
+# PRJEB75463
 
 63kraken
 
-In PRJEB75463 subset directory: mkdir kraken2_results_newdb_63 
-
-mkdir -p kraken2_results_newdb_63
+mkdir kraken2_results_newdb_63 
 
 #!/bin/bash
 
