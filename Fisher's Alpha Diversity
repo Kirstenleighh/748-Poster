@@ -13,11 +13,12 @@ echo "sample,cohort,fisher" > "$OUTPUT"
 
 echo "Processing PRJEB75460 - first 200..."
 
+# loop through each .bracken file
 for FILE in /pub60/kirsten/Projects/PRJEB75460/Bracken_newdb_200_results/*.bracken
 do
-    SAMPLE=$(basename "$FILE" .bracken)
-    VALUE=$(python "$ALPHA_SCRIPT" -f "$FILE" -a F | grep -oP '(?<=: )[\d.eE+-]+')
-    echo "${SAMPLE},PRJEB75460,${VALUE}" >> "$OUTPUT"
+    SAMPLE=$(basename "$FILE" .bracken) # extract file name without the .bracken extension
+    VALUE=$(python "$ALPHA_SCRIPT" -f "$FILE" -a F | grep -oP '(?<=: )[\d.eE+-]+') # run alphadiversity.py script on the file, take output and feed into grep, print output that matches regex (number after the :)
+    echo "${SAMPLE},PRJEB75460,${VALUE}" >> "$OUTPUT" # sample name, bioproject and fishers alpha value to the output csv
 done
 
 echo "Processing PRJEB75460 - 773..."
@@ -49,10 +50,10 @@ done
 
 echo "FISHER RESULTS"
 
-for COHORT in PRJEB75460 PRJEB75462 PRJEB75463
+for COHORT in PRJEB75460 PRJEB75462 PRJEB75463 
 do
-    COUNT=$(grep -c "$COHORT" "$OUTPUT")
-    echo "$COHORT: $COUNT samples"
+    COUNT=$(grep -c "$COHORT" "$OUTPUT") # count how many lines in the output csv contain the current bioproject name
+    echo "$COHORT: $COUNT samples" # print bioproject name and number of samples
 done
 
 echo ""
