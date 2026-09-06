@@ -20,7 +20,7 @@ ls -d $BASE_DIR/SAMEA* | head -n 200 | while read sample # identify the first 20
 do
     echo "Processing $sample" # print current sample 
     fastqc -t 8 $sample/*.fastq.gz -o $OUT_DIR # run fastqc on fastq files within the current sample dir 
-Done, -t 8 uses 8 threads for processing
+Done, -t 8 # uses 8 threads for processing
 
 echo "FastQC complete"
 
