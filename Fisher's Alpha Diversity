@@ -3,8 +3,10 @@
 
 #!/bin/bash
 
+# output csv for fishers diversity values 
 OUTPUT="/pub60/kirsten/Projects/Results1/Section_2_diversity/alpha_diversity_fisher_all.csv"
 
+# where the python script is saved used to calculate alpha div
 ALPHA_SCRIPT="/pub60/kirsten/Projects/PRJEB75460/alphadiversity.py"
 
 echo "sample,cohort,fisher" > "$OUTPUT"
